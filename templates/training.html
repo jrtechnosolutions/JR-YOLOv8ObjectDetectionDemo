@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Model Training{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 3rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        transition: all 0.2s ease;
+        background-color: #f8f9fa;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f1f8ff;
+    }
+    .upload-area.dragover {
+        background-color: #e8f4ff;
+        border-color: #0d6efd;
+    }
+    .training-params {
+        margin-top: 1.5rem;
+    }
+    .training-status {
+        margin-top: 2rem;
+        display: none;
+    }
+    .progress {
+        height: 25px;
+    }
+    .progress-bar {
+        font-size: 0.9rem;
+        line-height: 25px;
+    }
+    .model-list {
+        margin-top: 2rem;
+    }
+    .model-card {
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+    }
+    .model-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        margin: 2rem 0;
+    }
+    .dataset-info {
+        display: none;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <h1 class="mb-4">Model Training</h1>
+        <p class="lead">Train your own YOLO models on custom datasets for specialized computer vision tasks.</p>
+        
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading"><i class="bi bi-info-circle"></i> Training Information</h4>
+            <p>Upload your dataset as a ZIP file containing images and annotations. The dataset should be organized in a structure that YOLO can understand, typically with separate folders for images and labels.</p>
+            <hr>
+            <p class="mb-0">Training process will run on the server. You can close this page and come back later to check progress or download your trained model.</p>
+        </div>
+        
+        <!-- Upload Dataset Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">1. Upload Dataset</h3>
+            </div>
+            <div class="card-body">
+                <div class="upload-area" id="dropArea">
+                    <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
+                    <h5>Drag & Drop your dataset ZIP file here</h5>
+                    <p class="text-muted">Maximum file size: 500MB</p>
+                    <input type="file" id="datasetInput" class="d-none" accept=".zip">
+                    <button class="btn btn-primary" id="browseButton">Browse Files</button>
+                </div>
+                
+                <div class="dataset-info" id="datasetInfo">
+                    <div class="alert alert-success">
+                        <h5 class="alert-heading"><i class="bi bi-check-circle"></i> Dataset Ready</h5>
+                        <p id="datasetDetails">dataset.zip (0 MB)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Training Parameters Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">2. Configure Training</h3>
+            </div>
+            <div class="card-body">
+                <div class="row training-params">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="modelTypeSelect" class="form-label">Model Type</label>
+                            <select class="form-select" id="modelTypeSelect">
+                                <option value="detection">Detection (bounding boxes)</option>
+                                <option value="segmentation">Segmentation (masks)</option>
+                                <option value="pose">Pose Estimation (keypoints)</option>
+                                <option value="classification">Classification</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="epochsInput" class="form-label">Training Epochs</label>
+                            <input type="number" class="form-control" id="epochsInput" value="10" min="1" max="100">
+                            <div class="form-text">Number of complete passes through the training dataset.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="batchSizeInput" class="form-label">Batch Size</label>
+                            <input type="number" class="form-control" id="batchSizeInput" value="16" min="1" max="64">
+                            <div class="form-text">Number of samples processed before model update.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="imgSizeInput" class="form-label">Image Size</label>
+                            <input type="number" class="form-control" id="imgSizeInput" value="640" min="320" max="1280" step="32">
+                            <div class="form-text">Input resolution for the model.</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid">
+                    <button class="btn btn-primary btn-lg" id="startTrainingButton">
+                        <i class="bi bi-play-fill"></i> Start Training
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Starting training process...</p>
+        </div>
+        
+        <!-- Training Status -->
+        <div class="training-status" id="trainingStatus">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Training Status</h3>
+                </div>
+                <div class="card-body">
+                    <h4 id="statusMessage">Training in progress...</h4>
+                    
+                    <div class="progress mt-4">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    
+                    <div class="mt-3" id="trainingDetails">
+                        <!-- Training details will be populated here -->
+                    </div>
+                    
+                    <div class="completed-actions mt-4" id="completedActions" style="display: none;">
+                        <h5>Training Complete!</h5>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <a href="#" class="btn btn-success d-block" id="downloadModelButton">
+                                    <i class="bi bi-download"></i> Download PT Model
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="#" class="btn btn-outline-success d-block" id="downloadOnnxButton">
+                                    <i class="bi bi-download"></i> Download ONNX Model
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Existing Models -->
+        <div class="model-list">
+            <h3>Available Models</h3>
+            <div class="row" id="modelsList">
+                <!-- Models will be populated here -->
+                <div class="col-12 text-center py-4 text-muted" id="noModelsMessage">
+                    <i class="bi bi-archive fs-1"></i>
+                    <p class="mt-2">No trained models available yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // DOM elements
+        const datasetInput = document.getElementById('datasetInput');
+        const browseButton = document.getElementById('browseButton');
+        const dropArea = document.getElementById('dropArea');
+        const datasetInfo = document.getElementById('datasetInfo');
+        const datasetDetails = document.getElementById('datasetDetails');
+        const modelTypeSelect = document.getElementById('modelTypeSelect');
+        const epochsInput = document.getElementById('epochsInput');
+        const batchSizeInput = document.getElementById('batchSizeInput');
+        const imgSizeInput = document.getElementById('imgSizeInput');
+        const startTrainingButton = document.getElementById('startTrainingButton');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const trainingStatus = document.getElementById('trainingStatus');
+        const statusMessage = document.getElementById('statusMessage');
+        const progressBar = document.getElementById('progressBar');
+        const trainingDetails = document.getElementById('trainingDetails');
+        const completedActions = document.getElementById('completedActions');
+        const downloadModelButton = document.getElementById('downloadModelButton');
+        const downloadOnnxButton = document.getElementById('downloadOnnxButton');
+        const modelsList = document.getElementById('modelsList');
+        const noModelsMessage = document.getElementById('noModelsMessage');
+        
+        // Variables
+        let datasetFile = null;
+        let trainingInterval = null;
+        
+        // Load existing models on page load
+        loadModels();
+        
+        // Event: Browse button clicked
+        browseButton.addEventListener('click', () => {
+            datasetInput.click();
+        });
+        
+        // Event: File selected
+        datasetInput.addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0]);
+        });
+        
+        // Event: Drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            }, false);
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFileUpload(file);
+        }, false);
+        
+        // Function: Handle file upload
+        function handleFileUpload(file) {
+            if (file && file.name.endsWith('.zip')) {
+                datasetFile = file;
+                
+                // Update dataset info
+                datasetInfo.style.display = 'block';
+                datasetDetails.textContent = `${file.name} (${formatFileSize(file.size)})`;
+            } else {
+                alert('Please select a valid ZIP file.');
+                datasetFile = null;
+                datasetInfo.style.display = 'none';
+            }
+        }
+        
+        // Function: Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Event: Start training button clicked
+        startTrainingButton.addEventListener('click', () => {
+            // Validate inputs
+            if (!datasetFile) {
+                alert('Please upload a dataset file first.');
+                return;
+            }
+            
+            // Show loading spinner
+            loadingSpinner.style.display = 'block';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('dataset', datasetFile);
+            formData.append('model_type', modelTypeSelect.value);
+            formData.append('epochs', epochsInput.value);
+            formData.append('batch_size', batchSizeInput.value);
+            formData.append('img_size', imgSizeInput.value);
+            
+            // Send request to start training
+            fetch('/api/start-training', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                if (data.status === 'success') {
+                    // Show training status
+                    trainingStatus.style.display = 'block';
+                    completedActions.style.display = 'none';
+                    
+                    // Start polling for training status
+                    startTrainingStatusPolling();
+                    
+                    // Scroll to training status
+                    trainingStatus.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to start training'));
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                alert('Error: ' + error.message);
+            });
+        });
+        
+        // Function: Start training status polling
+        function startTrainingStatusPolling() {
+            // Clear any existing interval
+            if (trainingInterval) {
+                clearInterval(trainingInterval);
+            }
+            
+            // Update status immediately
+            updateTrainingStatus();
+            
+            // Set interval to update status every 5 seconds
+            trainingInterval = setInterval(updateTrainingStatus, 5000);
+        }
+        
+        // Function: Update training status
+        function updateTrainingStatus() {
+            fetch('/api/training-status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update progress bar
+                    progressBar.style.width = `${data.progress}%`;
+                    progressBar.textContent = `${data.progress}%`;
+                    progressBar.setAttribute('aria-valuenow', data.progress);
+                    
+                    // Update status message
+                    statusMessage.textContent = data.message;
+                    
+                    // Update training details
+                    let detailsHtml = '';
+                    if (data.progress > 0) {
+                        detailsHtml += `<p class="text-muted mt-2">Training progress: ${data.progress}%</p>`;
+                    }
+                    trainingDetails.innerHTML = detailsHtml;
+                    
+                    // Check if training is complete
+                    if (data.complete) {
+                        // Stop polling
+                        clearInterval(trainingInterval);
+                        
+                        // Update UI for completed training
+                        if (data.model_path) {
+                            completedActions.style.display = 'block';
+                            downloadModelButton.href = `/models/${data.model_path.split('/').pop()}`;
+                            downloadOnnxButton.href = `/models/${data.onnx_path.split('/').pop()}`;
+                            
+                            // Make the progress bar green
+                            progressBar.classList.remove('progress-bar-animated');
+                            progressBar.classList.add('bg-success');
+                            
+                            // Reload models list
+                            loadModels();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching training status:', error);
+                });
+        }
+        
+        // Function: Load models
+        function loadModels() {
+            fetch('/api/list-models')
+                .then(response => response.json())
+                .then(models => {
+                    if (models.length > 0) {
+                        // Hide "no models" message
+                        noModelsMessage.style.display = 'none';
+                        
+                        // Clear models list
+                        modelsList.innerHTML = '';
+                        
+                        // Add models to list
+                        models.forEach(model => {
+                            const modelCard = document.createElement('div');
+                            modelCard.className = 'col-md-6 col-lg-4';
+                            
+                            const date = new Date(model.date * 1000).toLocaleDateString();
+                            const fileSize = formatFileSize(model.size);
+                            const isPt = model.name.endsWith('.pt');
+                            
+                            modelCard.innerHTML = `
+                                <div class="card model-card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${model.name}</h5>
+                                        <p class="card-text text-muted">
+                                            <small>
+                                                <i class="bi bi-calendar"></i> ${date}<br>
+                                                <i class="bi bi-hdd"></i> ${fileSize}
+                                            </small>
+                                        </p>
+                                        <div class="d-grid">
+                                            <a href="${model.path}" class="btn btn-sm ${isPt ? 'btn-primary' : 'btn-outline-primary'}" download>
+                                                <i class="bi bi-download"></i> Download ${isPt ? 'PT' : 'ONNX'} Model
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            modelsList.appendChild(modelCard);
+                        });
+                    } else {
+                        // Show "no models" message
+                        noModelsMessage.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading models:', error);
+                });
+        }
+    });
+</script>
+{% endblock %}

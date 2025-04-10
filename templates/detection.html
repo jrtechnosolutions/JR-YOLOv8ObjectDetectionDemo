@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Object Detection{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-container {
+        display: none;
+        margin-top: 2rem;
+    }
+    .confidence-slider {
+        width: 100%;
+    }
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 3rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        transition: all 0.2s ease;
+        background-color: #f8f9fa;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f1f8ff;
+    }
+    .upload-area.dragover {
+        background-color: #e8f4ff;
+        border-color: #0d6efd;
+    }
+    .tab-pane {
+        padding: 1.5rem 0;
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        margin: 2rem 0;
+    }
+    .detection-table {
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <h1 class="mb-4">Object Detection</h1>
+        <p class="lead">Detect objects in images using YOLOv8. Upload an image, provide a URL, or use your webcam.</p>
+        
+        <!-- Input Options -->
+        <ul class="nav nav-tabs" id="inputTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">Upload Image</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">Image URL</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="inputTabsContent">
+            <!-- Upload Image Tab -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <div class="upload-area" id="dropArea">
+                    <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
+                    <h5>Drag & Drop an image here</h5>
+                    <p class="text-muted">or</p>
+                    <input type="file" id="fileInput" class="d-none" accept="image/*">
+                    <button class="btn btn-primary" id="browseButton">Browse Files</button>
+                </div>
+                <div id="uploadedImageContainer" style="display: none;">
+                    <div class="text-center">
+                        <img id="uploadedImage" class="img-fluid rounded mb-3" style="max-height: 300px;">
+                        <div>
+                            <button class="btn btn-outline-danger btn-sm" id="removeImage">
+                                <i class="bi bi-x-circle"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- URL Tab -->
+            <div class="tab-pane fade" id="url" role="tabpanel">
+                <div class="my-4">
+                    <label for="imageUrl" class="form-label">Image URL</label>
+                    <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Confidence Threshold -->
+        <div class="mb-4">
+            <label for="confidenceSlider" class="form-label">Confidence Threshold: <span id="confidenceValue">0.25</span></label>
+            <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
+        </div>
+        
+        <!-- Detect Button -->
+        <div class="d-grid">
+            <button id="detectButton" class="btn btn-primary btn-lg">
+                <i class="bi bi-search"></i> Detect Objects
+            </button>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Processing image...</p>
+        </div>
+        
+        <!-- Results -->
+        <div class="result-container" id="resultContainer">
+            <h3>Detection Results</h3>
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="text-center">
+                        <img id="resultImage" class="img-fluid rounded shadow" alt="Detection Result">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Detected Objects</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="detectionStats">
+                                <p>Total objects: <span id="totalObjects">0</span></p>
+                            </div>
+                            <div class="table-responsive detection-table">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Class</th>
+                                            <th>Confidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detectionResults">
+                                        <!-- Results will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const browseButton = document.getElementById('browseButton');
+        const dropArea = document.getElementById('dropArea');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const uploadedImageContainer = document.getElementById('uploadedImageContainer');
+        const removeImageButton = document.getElementById('removeImage');
+        const imageUrlInput = document.getElementById('imageUrl');
+        const confidenceSlider = document.getElementById('confidenceSlider');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const detectButton = document.getElementById('detectButton');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultImage = document.getElementById('resultImage');
+        const detectionResults = document.getElementById('detectionResults');
+        const totalObjects = document.getElementById('totalObjects');
+        
+        // Variables
+        let currentFile = null;
+        let currentTab = 'upload';
+        
+        // Event: Browse button clicked
+        browseButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Event: Tab changed
+        $('#inputTabs button').on('shown.bs.tab', function (e) {
+            currentTab = e.target.id.split('-')[0];
+        });
+        
+        // Event: File selected
+        fileInput.addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0]);
+        });
+        
+        // Event: Drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            }, false);
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFileUpload(file);
+        }, false);
+        
+        // Event: Remove image
+        removeImageButton.addEventListener('click', () => {
+            uploadedImageContainer.style.display = 'none';
+            currentFile = null;
+            fileInput.value = '';
+        });
+        
+        // Event: Confidence slider changed
+        confidenceSlider.addEventListener('input', () => {
+            confidenceValue.textContent = confidenceSlider.value;
+        });
+        
+        // Function: Handle file upload
+        function handleFileUpload(file) {
+            if (file && file.type.startsWith('image/')) {
+                currentFile = file;
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    uploadedImage.src = e.target.result;
+                    uploadedImageContainer.style.display = 'block';
+                };
+                
+                reader.readAsDataURL(file);
+            } else {
+                alert('Please select a valid image file.');
+            }
+        }
+        
+        // Event: Detect button clicked
+        detectButton.addEventListener('click', () => {
+            // Validate inputs
+            if (currentTab === 'upload' && !currentFile) {
+                alert('Please upload an image first.');
+                return;
+            }
+            
+            if (currentTab === 'url' && !imageUrlInput.value) {
+                alert('Please enter an image URL.');
+                return;
+            }
+            
+            // Show loading spinner
+            loadingSpinner.style.display = 'block';
+            resultContainer.style.display = 'none';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('model_type', 'detection');
+            formData.append('confidence', confidenceSlider.value);
+            
+            if (currentTab === 'upload') {
+                formData.append('image', currentFile);
+            } else {
+                formData.append('url', imageUrlInput.value);
+            }
+            
+            // Send request to server
+            fetch('/api/process-image', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                if (data.status === 'success') {
+                    // Show results
+                    resultContainer.style.display = 'block';
+                    resultImage.src = data.result_image;
+                    
+                    // Update detection results
+                    detectionResults.innerHTML = '';
+                    totalObjects.textContent = data.result_data.length;
+                    
+                    data.result_data.forEach(obj => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${obj.class}</td>
+                            <td>${(obj.confidence * 100).toFixed(0)}%</td>
+                        `;
+                        detectionResults.appendChild(row);
+                    });
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to process image'));
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                alert('Error: ' + error.message);
+            });
+        });
+    });
+</script>
+{% endblock %}

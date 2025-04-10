@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Image Classification{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-container {
+        display: none;
+        margin-top: 2rem;
+    }
+    .confidence-slider {
+        width: 100%;
+    }
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 3rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        transition: all 0.2s ease;
+        background-color: #f8f9fa;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f1f8ff;
+    }
+    .upload-area.dragover {
+        background-color: #e8f4ff;
+        border-color: #0d6efd;
+    }
+    .tab-pane {
+        padding: 1.5rem 0;
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        margin: 2rem 0;
+    }
+    .class-bar {
+        height: 25px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        position: relative;
+    }
+    .class-bar .progress-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        background-color: #0d6efd;
+        border-radius: 4px;
+        transition: width 0.6s ease;
+    }
+    .class-bar .class-label {
+        position: absolute;
+        left: 8px;
+        top: 3px;
+        color: #fff;
+        font-size: 0.875rem;
+        z-index: 1;
+    }
+    .class-bar .class-percentage {
+        position: absolute;
+        right: 8px;
+        top: 3px;
+        color: #fff;
+        font-size: 0.875rem;
+        z-index: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <h1 class="mb-4">Image Classification</h1>
+        <p class="lead">Classify images into different categories using YOLOv8 classification models.</p>
+        
+        <!-- Input Options -->
+        <ul class="nav nav-tabs" id="inputTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">Upload Image</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">Image URL</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="inputTabsContent">
+            <!-- Upload Image Tab -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel">
+                <div class="upload-area" id="dropArea">
+                    <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
+                    <h5>Drag & Drop an image here</h5>
+                    <p class="text-muted">or</p>
+                    <input type="file" id="fileInput" class="d-none" accept="image/*">
+                    <button class="btn btn-primary" id="browseButton">Browse Files</button>
+                </div>
+                <div id="uploadedImageContainer" style="display: none;">
+                    <div class="text-center">
+                        <img id="uploadedImage" class="img-fluid rounded mb-3" style="max-height: 300px;">
+                        <div>
+                            <button class="btn btn-outline-danger btn-sm" id="removeImage">
+                                <i class="bi bi-x-circle"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- URL Tab -->
+            <div class="tab-pane fade" id="url" role="tabpanel">
+                <div class="my-4">
+                    <label for="imageUrl" class="form-label">Image URL</label>
+                    <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Confidence Threshold -->
+        <div class="mb-4">
+            <label for="confidenceSlider" class="form-label">Confidence Threshold: <span id="confidenceValue">0.25</span></label>
+            <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
+        </div>
+        
+        <!-- Classify Button -->
+        <div class="d-grid">
+            <button id="classifyButton" class="btn btn-primary btn-lg">
+                <i class="bi bi-tags"></i> Classify Image
+            </button>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Processing image...</p>
+        </div>
+        
+        <!-- Results -->
+        <div class="result-container" id="resultContainer">
+            <h3>Classification Results</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="text-center mb-4">
+                        <img id="uploadedImageResult" class="img-fluid rounded shadow" alt="Original Image">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Detected Classes</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="topPrediction" class="mb-3">
+                                <h4 class="text-center" id="topClass">Unknown</h4>
+                                <p class="text-center text-muted">Top prediction</p>
+                            </div>
+                            <hr>
+                            <h6>All Predictions:</h6>
+                            <div id="classResults">
+                                <!-- Results will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const browseButton = document.getElementById('browseButton');
+        const dropArea = document.getElementById('dropArea');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const uploadedImageContainer = document.getElementById('uploadedImageContainer');
+        const removeImageButton = document.getElementById('removeImage');
+        const imageUrlInput = document.getElementById('imageUrl');
+        const confidenceSlider = document.getElementById('confidenceSlider');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const classifyButton = document.getElementById('classifyButton');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const resultContainer = document.getElementById('resultContainer');
+        const uploadedImageResult = document.getElementById('uploadedImageResult');
+        const topClass = document.getElementById('topClass');
+        const classResults = document.getElementById('classResults');
+        
+        // Variables
+        let currentFile = null;
+        let currentTab = 'upload';
+        
+        // Event: Browse button clicked
+        browseButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Event: Tab changed
+        $('#inputTabs button').on('shown.bs.tab', function (e) {
+            currentTab = e.target.id.split('-')[0];
+        });
+        
+        // Event: File selected
+        fileInput.addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0]);
+        });
+        
+        // Event: Drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            }, false);
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFileUpload(file);
+        }, false);
+        
+        // Event: Remove image
+        removeImageButton.addEventListener('click', () => {
+            uploadedImageContainer.style.display = 'none';
+            currentFile = null;
+            fileInput.value = '';
+        });
+        
+        // Event: Confidence slider changed
+        confidenceSlider.addEventListener('input', () => {
+            confidenceValue.textContent = confidenceSlider.value;
+        });
+        
+        // Function: Handle file upload
+        function handleFileUpload(file) {
+            if (file && file.type.startsWith('image/')) {
+                currentFile = file;
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    uploadedImage.src = e.target.result;
+                    uploadedImageContainer.style.display = 'block';
+                };
+                
+                reader.readAsDataURL(file);
+            } else {
+                alert('Please select a valid image file.');
+            }
+        }
+        
+        // Event: Classify button clicked
+        classifyButton.addEventListener('click', () => {
+            // Validate inputs
+            if (currentTab === 'upload' && !currentFile) {
+                alert('Please upload an image first.');
+                return;
+            }
+            
+            if (currentTab === 'url' && !imageUrlInput.value) {
+                alert('Please enter an image URL.');
+                return;
+            }
+            
+            // Show loading spinner
+            loadingSpinner.style.display = 'block';
+            resultContainer.style.display = 'none';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('model_type', 'classification');
+            formData.append('confidence', confidenceSlider.value);
+            
+            if (currentTab === 'upload') {
+                formData.append('image', currentFile);
+            } else {
+                formData.append('url', imageUrlInput.value);
+            }
+            
+            // Send request to server
+            fetch('/api/process-image', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                if (data.status === 'success') {
+                    // Show results
+                    resultContainer.style.display = 'block';
+                    
+                    // Set the image
+                    if (currentTab === 'upload') {
+                        uploadedImageResult.src = URL.createObjectURL(currentFile);
+                    } else {
+                        uploadedImageResult.src = imageUrlInput.value;
+                    }
+                    
+                    // Process classification results
+                    const results = data.result_data;
+                    
+                    // Convert to array of [class, probability] pairs
+                    const resultsArray = Object.entries(results);
+                    
+                    // Sort by probability (descending)
+                    resultsArray.sort((a, b) => b[1] - a[1]);
+                    
+                    // Get top class
+                    if (resultsArray.length > 0) {
+                        const [className, probability] = resultsArray[0];
+                        topClass.textContent = className;
+                    }
+                    
+                    // Clear previous results
+                    classResults.innerHTML = '';
+                    
+                    // Add all results as bars
+                    resultsArray.forEach(([className, probability]) => {
+                        const percentage = (probability * 100).toFixed(1);
+                        
+                        const barContainer = document.createElement('div');
+                        barContainer.className = 'class-bar';
+                        barContainer.innerHTML = `
+                            <div class="progress-bar" style="width: ${percentage}%"></div>
+                            <span class="class-label">${className}</span>
+                            <span class="class-percentage">${percentage}%</span>
+                        `;
+                        
+                        classResults.appendChild(barContainer);
+                    });
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to process image'));
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                alert('Error: ' + error.message);
+            });
+        });
+    });
+</script>
+{% endblock %}

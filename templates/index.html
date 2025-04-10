@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Home{% endblock %}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <h1 class="display-4 fw-bold text-body-emphasis">YOLO Vision AI</h1>
+    <div class="col-lg-8 mx-auto">
+        <p class="lead mb-4">
+            Advanced computer vision application powered by YOLO models for object detection, segmentation, pose estimation, and image classification.
+        </p>
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center mb-5">
+            <a href="/detection" class="btn btn-primary btn-lg px-4 gap-3">Try Object Detection</a>
+            <a href="/training" class="btn btn-outline-secondary btn-lg px-4">Train Custom Model</a>
+        </div>
+    </div>
+</div>
+
+<div class="container px-4 py-5">
+    <h2 class="pb-2 border-bottom">Key Features</h2>
+    
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-box"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Object Detection</h3>
+                <p>Detect and locate multiple objects in images with bounding boxes using YOLOv8 models.</p>
+                <a href="/detection" class="btn btn-primary">Try Detection</a>
+            </div>
+        </div>
+        
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-layers"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Segmentation</h3>
+                <p>Get pixel-perfect masks for detected objects with semantic segmentation models.</p>
+                <a href="/segmentation" class="btn btn-primary">Try Segmentation</a>
+            </div>
+        </div>
+        
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-person"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Pose Estimation</h3>
+                <p>Detect human body keypoints for pose estimation in images and videos.</p>
+                <a href="/pose" class="btn btn-primary">Try Pose Estimation</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-tags"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Classification</h3>
+                <p>Classify images into different categories with confidence scores.</p>
+                <a href="/classification" class="btn btn-primary">Try Classification</a>
+            </div>
+        </div>
+        
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-camera-video"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Live Streaming</h3>
+                <p>Process video streams in real-time from webcam with different models.</p>
+                <a href="/streaming" class="btn btn-primary">Try Live Stream</a>
+            </div>
+        </div>
+        
+        <div class="col d-flex align-items-start">
+            <div class="icon-square text-body-emphasis bg-body-secondary d-inline-flex align-items-center justify-content-center fs-4 flex-shrink-0 me-3 p-3 rounded">
+                <i class="bi bi-cpu"></i>
+            </div>
+            <div>
+                <h3 class="fs-2 text-body-emphasis">Custom Training</h3>
+                <p>Train your own YOLO models on custom datasets for specialized tasks.</p>
+                <a href="/training" class="btn btn-primary">Train Models</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container px-4 py-5 bg-light rounded-3">
+    <div class="row align-items-center">
+        <div class="col-lg-6">
+            <h2>Powered by YOLOv8</h2>
+            <p class="lead">
+                This application utilizes Ultralytics YOLOv8, the latest version of the YOLO (You Only Look Once) object detection and image segmentation model.
+            </p>
+            <p>
+                YOLOv8 is a cutting-edge, state-of-the-art (SOTA) model that builds upon the success of previous YOLO versions and introduces new features and improvements for object detection, image segmentation, and image classification tasks.
+            </p>
+        </div>
+        <div class="col-lg-6">
+            <div class="text-center">
+                <img src="{{ url_for('static', filename='img/yolo-examples.jpg') }}" class="img-fluid rounded shadow" alt="YOLO Examples" onerror="this.src='https://docs.ultralytics.com/assets/yolo-comparison-plots.png';this.onerror=null;">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

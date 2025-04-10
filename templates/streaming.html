@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Live Video Streaming{% endblock %}
+
+{% block extra_css %}
+<style>
+    .video-container {
+        position: relative;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .video-container img {
+        width: 100%;
+        display: block;
+    }
+    
+    .controls {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .control-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+    
+    .stream-status {
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+    
+    .status-inactive {
+        color: #dc3545;
+    }
+    
+    .status-active {
+        color: #198754;
+    }
+    
+    .confidence-slider {
+        width: 100%;
+    }
+    
+    .loading-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: white;
+        background-color: rgba(0,0,0,0.7);
+        padding: 1rem;
+        border-radius: 8px;
+        display: none;
+    }
+    
+    .capture-button {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        background-color: rgba(255,255,255,0.7);
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .capture-button:hover {
+        background-color: rgba(255,255,255,0.9);
+    }
+    
+    .capture-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+        display: none;
+    }
+    
+    .captured-image-container {
+        display: none;
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <h1 class="mb-4">Live Video Streaming</h1>
+        <p class="lead">Process video in real-time using YOLO models for object detection, segmentation, and pose estimation.</p>
+        
+        <!-- Stream Status -->
+        <div class="stream-status" id="streamStatus">
+            <span class="status-inactive">
+                <i class="bi bi-camera-video-off"></i> Stream Inactive
+            </span>
+        </div>
+        
+        <!-- Video Container -->
+        <div class="video-container">
+            <img id="videoFeed" src="{{ url_for('static', filename='img/video-placeholder.jpg') }}" alt="Video Stream" onerror="this.src='data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22800%22%20height%3D%22600%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20800%20600%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_18ae3b7c110%20text%20%7B%20fill%3A%23606060%3Bfont-weight%3Anormal%3Bfont-family%3AHelvetica%2C%20monospace%3Bfont-size%3A40pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_18ae3b7c110%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23EEEEEE%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%22270%22%20y%3D%22319.2%22%3ENo%20Webcam%20Feed%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E'">
+            <div class="loading-indicator" id="loadingIndicator">
+                <div class="spinner-border text-light" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 mb-0">Starting stream...</p>
+            </div>
+            <button class="capture-button" id="captureButton" title="Capture Frame" disabled>
+                <i class="bi bi-camera"></i>
+            </button>
+        </div>
+        
+        <!-- Capture Alert -->
+        <div class="alert alert-success alert-dismissible fade capture-alert" id="captureAlert" role="alert">
+            <strong>Success!</strong> Frame captured successfully.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="modelSelect" class="form-label">Model Type</label>
+                    <select class="form-select" id="modelSelect">
+                        <option value="detection">Object Detection</option>
+                        <option value="segmentation">Image Segmentation</option>
+                        <option value="pose">Pose Estimation</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="cameraSelect" class="form-label">Camera Source</label>
+                    <select class="form-select" id="cameraSelect">
+                        <option value="0">Default Camera</option>
+                        <option value="1">Camera 1 (if available)</option>
+                        <option value="2">Camera 2 (if available)</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="confidenceSlider" class="form-label">Confidence Threshold: <span id="confidenceValue">0.25</span></label>
+                    <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
+                </div>
+            </div>
+            
+            <div class="control-buttons">
+                <button class="btn btn-primary" id="startButton">
+                    <i class="bi bi-play-fill"></i> Start Stream
+                </button>
+                <button class="btn btn-danger" id="stopButton" disabled>
+                    <i class="bi bi-stop-fill"></i> Stop Stream
+                </button>
+            </div>
+        </div>
+        
+        <!-- Captured Image -->
+        <div class="captured-image-container" id="capturedImageContainer">
+            <h3>Captured Frame</h3>
+            <div class="row">
+                <div class="col-md-8 mx-auto">
+                    <div class="text-center">
+                        <img id="capturedImage" class="img-fluid rounded shadow" alt="Captured Frame">
+                        <div class="mt-3">
+                            <a id="downloadLink" href="#" class="btn btn-primary" download="captured-frame.jpg">
+                                <i class="bi bi-download"></i> Download Image
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // DOM elements
+        const videoFeed = document.getElementById('videoFeed');
+        const streamStatus = document.getElementById('streamStatus');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const modelSelect = document.getElementById('modelSelect');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const confidenceSlider = document.getElementById('confidenceSlider');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const captureButton = document.getElementById('captureButton');
+        const captureAlert = document.getElementById('captureAlert');
+        const capturedImageContainer = document.getElementById('capturedImageContainer');
+        const capturedImage = document.getElementById('capturedImage');
+        const downloadLink = document.getElementById('downloadLink');
+        
+        // Variables
+        let streamActive = false;
+        
+        // Event: Start stream button clicked
+        startButton.addEventListener('click', () => {
+            if (streamActive) return;
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('camera_id', cameraSelect.value);
+            
+            // Send request to start stream
+            fetch('/api/start-stream', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update UI
+                    streamActive = true;
+                    updateStreamParameters();
+                    updateStreamStatus(true);
+                    
+                    // Initiate video stream
+                    videoFeed.src = `/video-feed?model_type=${modelSelect.value}&confidence=${confidenceSlider.value}`;
+                    
+                    // Hide loading indicator after a delay
+                    setTimeout(() => {
+                        loadingIndicator.style.display = 'none';
+                    }, 2000);
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to start stream'));
+                    loadingIndicator.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                loadingIndicator.style.display = 'none';
+            });
+        });
+        
+        // Event: Stop stream button clicked
+        stopButton.addEventListener('click', () => {
+            if (!streamActive) return;
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            loadingIndicator.querySelector('p').textContent = 'Stopping stream...';
+            
+            // Send request to stop stream
+            fetch('/api/stop-stream', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update UI
+                    streamActive = false;
+                    updateStreamStatus(false);
+                    
+                    // Reset video feed
+                    videoFeed.src = "{{ url_for('static', filename='img/video-placeholder.jpg') }}" || 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22800%22%20height%3D%22600%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20800%20600%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_18ae3b7c110%20text%20%7B%20fill%3A%23606060%3Bfont-weight%3Anormal%3Bfont-family%3AHelvetica%2C%20monospace%3Bfont-size%3A40pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_18ae3b7c110%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23EEEEEE%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%22270%22%20y%3D%22319.2%22%3ENo%20Webcam%20Feed%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E';
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to stop stream'));
+                }
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                loadingIndicator.style.display = 'none';
+            });
+        });
+        
+        // Event: Model/Camera/Confidence changed
+        modelSelect.addEventListener('change', updateStreamParameters);
+        confidenceSlider.addEventListener('input', () => {
+            confidenceValue.textContent = confidenceSlider.value;
+            updateStreamParameters();
+        });
+        
+        // Event: Capture button clicked
+        captureButton.addEventListener('click', () => {
+            if (!streamActive) return;
+            
+            // Send request to capture frame
+            fetch('/api/capture-frame', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Show captured image
+                    capturedImageContainer.style.display = 'block';
+                    capturedImage.src = data.frame_url;
+                    downloadLink.href = data.frame_url;
+                    
+                    // Show capture alert
+                    captureAlert.style.display = 'block';
+                    captureAlert.classList.add('show');
+                    
+                    // Auto hide alert after 3 seconds
+                    setTimeout(() => {
+                        captureAlert.classList.remove('show');
+                        setTimeout(() => {
+                            captureAlert.style.display = 'none';
+                        }, 300);
+                    }, 3000);
+                    
+                    // Scroll to captured image
+                    capturedImageContainer.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to capture frame'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        });
+        
+        // Function: Update stream parameters when they change
+        function updateStreamParameters() {
+            if (streamActive) {
+                videoFeed.src = `/video-feed?model_type=${modelSelect.value}&confidence=${confidenceSlider.value}`;
+            }
+        }
+        
+        // Function: Update stream status UI
+        function updateStreamStatus(active) {
+            if (active) {
+                streamStatus.innerHTML = `
+                    <span class="status-active">
+                        <i class="bi bi-camera-video"></i> Stream Active
+                    </span>
+                `;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                captureButton.disabled = false;
+            } else {
+                streamStatus.innerHTML = `
+                    <span class="status-inactive">
+                        <i class="bi bi-camera-video-off"></i> Stream Inactive
+                    </span>
+                `;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                captureButton.disabled = true;
+            }
+        }
+    });
+</script>
+{% endblock %}
