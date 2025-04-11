@@ -372,6 +372,106 @@ def get_video_stream(model_type, confidence=0.25):
     if camera is not None:
         camera.release()
 
+# Function to process uploaded video files
+def process_video_file(video_path, model_type, confidence=0.25, max_frames=300):
+    """Process a video file with selected YOLO model and save the result"""
+    model = load_model(model_type)
+    
+    # Open the video file
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None, "Could not open video file"
+    
+    # Get video properties
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Limit the number of frames to process
+    frames_to_process = min(total_frames, max_frames)
+    
+    # Create output video file
+    result_filename = f"{generate_unique_filename('video_result')}.mp4"
+    result_path = os.path.join(app.config['RESULTS_FOLDER'], result_filename)
+    
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(result_path, fourcc, fps, (width, height))
+    
+    processed_frames = 0
+    
+    try:
+        # Process each frame
+        for i in range(frames_to_process):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Process frame with YOLO
+            results = model(frame, conf=confidence)
+            result_frame = results[0].plot()
+            
+            # Write the processed frame to output video
+            out.write(result_frame)
+            processed_frames += 1
+            
+            # Print progress every 10 frames
+            if i % 10 == 0:
+                print(f"Processing video: {i}/{frames_to_process} frames ({int(i/frames_to_process*100)}%)")
+    except Exception as e:
+        cap.release()
+        out.release()
+        return None, f"Error processing video: {str(e)}"
+    finally:
+        # Release resources
+        cap.release()
+        out.release()
+    
+    return result_filename, f"Successfully processed {processed_frames} frames"
+
+# API endpoint to process video file
+@app.route('/api/process-video', methods=['POST'])
+def api_process_video():
+    """API endpoint for processing an uploaded video file"""
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video file provided'}), 400
+    
+    video_file = request.files['video']
+    if video_file.filename == '':
+        return jsonify({'error': 'No video file selected'}), 400
+    
+    if not allowed_file(video_file.filename):
+        return jsonify({'error': 'Video file type not allowed'}), 400
+    
+    # Save the uploaded video
+    filename = secure_filename(video_file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], generate_unique_filename(filename))
+    video_file.save(filepath)
+    
+    # Get parameters
+    model_type = request.form.get('model_type', 'detection')
+    confidence = float(request.form.get('confidence', 0.25))
+    max_frames = int(request.form.get('max_frames', 300))
+    
+    # Process the video file
+    result_filename, message = process_video_file(filepath, model_type, confidence, max_frames)
+    
+    if result_filename is None:
+        return jsonify({'error': message}), 500
+    
+    return jsonify({
+        'status': 'success',
+        'message': message,
+        'video_url': url_for('results', filename=result_filename)
+    })
+
+# Video processing page
+@app.route('/video-processing')
+def video_processing():
+    """Video processing page - alternative to streaming for Hugging Face Spaces"""
+    return render_template('video_processing.html')
+
 # Routes
 @app.route('/')
 def index():
@@ -534,24 +634,24 @@ def api_start_stream():
             if is_huggingface:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Las cámaras en vivo no están disponibles en Hugging Face Spaces. Por favor, usa la función de subir imágenes o URLs para probar la aplicación.'
+                    'message': 'Live camera streaming is not available in Hugging Face Spaces. Please use the image upload or URL feature to test the application.'
                 }), 400
             else:
                 return jsonify({
                     'status': 'error',
-                    'message': f'No se pudo abrir la cámara {camera_id}. Asegúrate de que esté conectada y no esté siendo usada por otra aplicación.'
+                    'message': f'Could not open camera {camera_id}. Make sure it is connected and not being used by another application.'
                 }), 400
         
         camera_active = True
         
         return jsonify({
             'status': 'success',
-            'message': 'Stream iniciado'
+            'message': 'Stream started'
         })
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': f'Error al iniciar el stream: {str(e)}'
+            'message': f'Error starting stream: {str(e)}'
         }), 500
 
 @app.route('/api/stop-stream', methods=['POST'])

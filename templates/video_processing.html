@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Vision AI - Video Processing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">YOLO Vision AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/detection">Detection</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/segmentation">Segmentation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pose">Pose</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/classification">Classification</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/streaming">Live Stream</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/video-processing">Video Processing</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div id="alertContainer"></div>
+        
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">Video Processing</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">Upload a video file to process it with YOLO models. The result will be a video with detected objects.</p>
+                        
+                        <form id="videoUploadForm" class="mb-4">
+                            <div class="mb-3">
+                                <label for="videoFile" class="form-label">Upload Video</label>
+                                <input class="form-control" type="file" id="videoFile" name="video" accept="video/mp4,video/avi">
+                                <div class="form-text">Supported formats: MP4, AVI (Max 100MB)</div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="modelType" class="form-label">Model Type</label>
+                                    <select class="form-select" id="modelType" name="model_type">
+                                        <option value="detection" selected>Object Detection</option>
+                                        <option value="segmentation">Segmentation</option>
+                                        <option value="pose">Pose Estimation</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="confidenceRange" class="form-label">Confidence Threshold: <span id="confidenceValue">0.25</span></label>
+                                    <input type="range" class="form-range" min="0.05" max="0.95" step="0.05" value="0.25" id="confidenceRange" name="confidence">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxFrames" class="form-label">Max Frames to Process</label>
+                                <input type="number" class="form-control" id="maxFrames" name="max_frames" value="300" min="10" max="1000">
+                                <div class="form-text">Limit the number of frames to process (higher values take longer)</div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" id="processBtn">
+                                    <i class="bi bi-camera-video"></i> Process Video
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div id="processingSpinner" class="text-center my-4 d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Processing...</span>
+                            </div>
+                            <p class="mt-2">Processing video... this may take a while depending on the video length.</p>
+                        </div>
+                        
+                        <div id="resultContainer" class="d-none">
+                            <h4 class="mb-3">Processed Video:</h4>
+                            <div class="ratio ratio-16x9 mb-3">
+                                <video id="resultVideo" controls>
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <a id="downloadLink" class="btn btn-success" download>
+                                    <i class="bi bi-download"></i> Download Processed Video
+                                </a>
+                                <button id="newVideoBtn" class="btn btn-secondary">Process Another Video</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-8 offset-md-2">
+                <div class="card shadow">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">About Video Processing</h4>
+                    </div>
+                    <div class="card-body">
+                        <p>This feature allows you to process pre-recorded videos with YOLO models. It's particularly useful in Hugging Face Spaces where live camera access is not available.</p>
+                        
+                        <h5>Tips:</h5>
+                        <ul>
+                            <li>Use shorter videos for faster processing</li>
+                            <li>Adjust the confidence threshold to filter out low-confidence detections</li>
+                            <li>The processing occurs on the server, so it may take some time</li>
+                            <li>Results are saved on the server and can be downloaded after processing</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>YOLO Vision AI</h4>
+                    <p>A computer vision application powered by YOLO for object detection, segmentation, pose estimation, and more.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 YOLO Vision AI</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoForm = document.getElementById('videoUploadForm');
+            const confidenceRange = document.getElementById('confidenceRange');
+            const confidenceValue = document.getElementById('confidenceValue');
+            const processingSpinner = document.getElementById('processingSpinner');
+            const resultContainer = document.getElementById('resultContainer');
+            const resultVideo = document.getElementById('resultVideo');
+            const downloadLink = document.getElementById('downloadLink');
+            const newVideoBtn = document.getElementById('newVideoBtn');
+            
+            // Update confidence value display
+            confidenceRange.addEventListener('input', function() {
+                confidenceValue.textContent = this.value;
+            });
+            
+            // Handle form submission
+            videoForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(videoForm);
+                const videoFile = document.getElementById('videoFile').files[0];
+                
+                // Validate video file
+                if (!videoFile) {
+                    showAlert('Please select a video file to process', 'warning');
+                    return;
+                }
+                
+                // Check file size (100MB max)
+                if (videoFile.size > 100 * 1024 * 1024) {
+                    showAlert('Video file is too large. Maximum size is 100MB', 'warning');
+                    return;
+                }
+                
+                // Show processing spinner
+                processingSpinner.classList.remove('d-none');
+                videoForm.classList.add('d-none');
+                
+                // Submit the form via AJAX
+                fetch('/api/process-video', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Display the processed video
+                        resultVideo.src = data.video_url;
+                        downloadLink.href = data.video_url;
+                        
+                        // Hide spinner, show result
+                        processingSpinner.classList.add('d-none');
+                        resultContainer.classList.remove('d-none');
+                        
+                        showAlert('Video processed successfully: ' + data.message, 'success');
+                    } else {
+                        throw new Error(data.error || 'Unknown error occurred');
+                    }
+                })
+                .catch(error => {
+                    processingSpinner.classList.add('d-none');
+                    videoForm.classList.remove('d-none');
+                    showAlert('Error: ' + error.message, 'danger');
+                    console.error('Error:', error);
+                });
+            });
+            
+            // New video button
+            newVideoBtn.addEventListener('click', function() {
+                resultContainer.classList.add('d-none');
+                videoForm.classList.remove('d-none');
+                videoForm.reset();
+                confidenceValue.textContent = '0.25';
+            });
+        });
+    </script>
+</body>
+</html>
