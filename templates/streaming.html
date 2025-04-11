@@ -104,6 +104,21 @@
         <h1 class="mb-4">Live Video Streaming</h1>
         <p class="lead">Process video in real-time using YOLO models for object detection, segmentation, and pose estimation.</p>
         
+        <!-- Hugging Face Spaces notification -->
+        <div id="huggingFaceNotification" class="alert alert-info d-none" role="alert">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="bi bi-info-circle-fill fs-4 me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                    <h5 class="alert-heading">Camera access not available in Hugging Face Spaces</h5>
+                    <p class="mb-1">Live camera streaming is not available in cloud-hosted environments like Hugging Face Spaces due to security restrictions.</p>
+                    <hr>
+                    <p class="mb-0">Please try our <a href="/video-processing" class="alert-link fw-bold">Video Processing</a> feature to analyze pre-recorded videos with YOLO models.</p>
+                </div>
+            </div>
+        </div>
+        
         <!-- Stream Status -->
         <div class="stream-status" id="streamStatus">
             <span class="status-inactive">
@@ -217,9 +232,11 @@
             
             // Prepare form data
             const formData = new FormData();
-            formData.append('camera_id', cameraSelect.value);
+            formData.append('camera_id', '0');
+            formData.append('model_type', modelSelect.value);
+            formData.append('confidence', confidenceSlider.value);
             
-            // Send request to start stream
+            // Send AJAX request to start stream
             fetch('/api/start-stream', {
                 method: 'POST',
                 body: formData
@@ -227,22 +244,46 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Update UI
-                    streamActive = true;
-                    updateStreamParameters();
-                    updateStreamStatus(true);
-                    
-                    // Initiate video stream
+                    // Set source and update state
                     videoFeed.src = `/video-feed?model_type=${modelSelect.value}&confidence=${confidenceSlider.value}`;
+                    streamActive = true;
+                    updateStreamStatus(true);
                     
                     // Hide loading indicator after a delay
                     setTimeout(() => {
                         loadingIndicator.style.display = 'none';
-                    }, 2000);
+                    }, 1000);
+                    
+                    // Hide Hugging Face notification if visible
+                    document.getElementById('huggingFaceNotification').classList.add('d-none');
+                    
                 } else {
-                    // Show error
-                    alert('Error: ' + (data.message || 'Failed to start stream'));
-                    loadingIndicator.style.display = 'none';
+                    // Check if it's a Hugging Face Spaces error
+                    if (data.message && data.message.includes('Hugging Face Spaces')) {
+                        // Show elegantly styled notification
+                        document.getElementById('huggingFaceNotification').classList.remove('d-none');
+                        
+                        // Hide loading indicator
+                        loadingIndicator.style.display = 'none';
+                        
+                        // Scroll to notification
+                        document.getElementById('huggingFaceNotification').scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                        // For other errors, show a more subtle notification
+                        const errorAlert = `
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <strong>Error:</strong> ${data.message || 'Failed to start stream'}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        `;
+                        
+                        // Insert error alert before the video container
+                        const videoContainer = document.querySelector('.video-container');
+                        videoContainer.insertAdjacentHTML('beforebegin', errorAlert);
+                        
+                        // Hide loading indicator
+                        loadingIndicator.style.display = 'none';
+                    }
                 }
             })
             .catch(error => {

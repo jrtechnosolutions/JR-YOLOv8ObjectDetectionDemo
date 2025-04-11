@@ -614,7 +614,7 @@ def api_start_stream():
     """API endpoint to start video stream"""
     global camera, camera_active
     
-    # Verificar si estamos en Hugging Face Spaces
+    # Check if we are running in Hugging Face Spaces
     is_huggingface = os.environ.get('SPACE_ID') is not None
     
     # Stop existing stream if any
@@ -624,6 +624,13 @@ def api_start_stream():
         if camera is not None:
             camera.release()
     
+    # If we're in Hugging Face Spaces, return a specific message
+    if is_huggingface:
+        return jsonify({
+            'status': 'error',
+            'message': 'Live camera streaming is not available in Hugging Face Spaces. Please use the Video Processing feature instead.'
+        }), 400
+    
     # Start new camera
     camera_id = int(request.form.get('camera_id', 0))
     
@@ -631,16 +638,10 @@ def api_start_stream():
         camera = cv2.VideoCapture(camera_id)
         
         if not camera.isOpened():
-            if is_huggingface:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Live camera streaming is not available in Hugging Face Spaces. Please use the image upload or URL feature to test the application.'
-                }), 400
-            else:
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Could not open camera {camera_id}. Make sure it is connected and not being used by another application.'
-                }), 400
+            return jsonify({
+                'status': 'error',
+                'message': 'Could not open camera. Please check your camera connection and permissions.'
+            }), 400
         
         camera_active = True
         
