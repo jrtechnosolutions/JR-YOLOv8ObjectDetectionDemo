@@ -16,7 +16,7 @@
             <a class="navbar-brand" href="/">
                 <i class="bi bi-eye-fill me-2"></i>YOLO Vision AI
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" title="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -38,6 +38,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/streaming' %}active{% endif %}" href="/streaming">Live Stream</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/video-processing' %}active{% endif %}" href="/video-processing">Video Processing</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/training' %}active{% endif %}" href="/training">Training</a>
@@ -78,7 +81,7 @@
                 </div>
             </div>
             <hr>
-            <p class="text-center mb-0">© 2025 YOLO Vision AI. Built with Flask and Ultralytics.</p>
+            <p class="text-center mb-0">&copy; 2025 YOLO Vision AI. Built with Flask and Ultralytics.</p>
         </div>
     </footer>
 
