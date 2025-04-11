@@ -1,3 +1,14 @@
+---
+title: YOLO Vision AI
+emoji: 🔍
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 3.39.0
+app_file: app.py
+pinned: false
+---
+
 # YOLO Vision AI
 
 Una aplicación web completa basada en Flask que aprovecha los modelos YOLO para diversas tareas de visión por computadora.
