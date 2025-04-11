@@ -514,6 +514,9 @@ def api_start_stream():
     """API endpoint to start video stream"""
     global camera, camera_active
     
+    # Verificar si estamos en Hugging Face Spaces
+    is_huggingface = os.environ.get('SPACE_ID') is not None
+    
     # Stop existing stream if any
     if camera_active:
         camera_active = False
@@ -523,20 +526,33 @@ def api_start_stream():
     
     # Start new camera
     camera_id = int(request.form.get('camera_id', 0))
-    camera = cv2.VideoCapture(camera_id)
     
-    if not camera.isOpened():
+    try:
+        camera = cv2.VideoCapture(camera_id)
+        
+        if not camera.isOpened():
+            if is_huggingface:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Las cámaras en vivo no están disponibles en Hugging Face Spaces. Por favor, usa la función de subir imágenes o URLs para probar la aplicación.'
+                }), 400
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'No se pudo abrir la cámara {camera_id}. Asegúrate de que esté conectada y no esté siendo usada por otra aplicación.'
+                }), 400
+        
+        camera_active = True
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Stream iniciado'
+        })
+    except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': f'Failed to open camera {camera_id}'
+            'message': f'Error al iniciar el stream: {str(e)}'
         }), 500
-    
-    camera_active = True
-    
-    return jsonify({
-        'status': 'success',
-        'message': 'Stream started'
-    })
 
 @app.route('/api/stop-stream', methods=['POST'])
 def api_stop_stream():
