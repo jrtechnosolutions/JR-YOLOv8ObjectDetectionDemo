@@ -21,9 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Crear directorio para guardar modelos y uploads si no existen y dar permisos adecuados
-RUN mkdir -p /app/static/uploads /app/static/results /app/static/models /app/uploads /app/results /app/models \
-    && chmod -R 777 /app/static /app/uploads /app/results /app/models
+# Crear todos los directorios necesarios y dar permisos completos
+RUN mkdir -p /app/static/uploads /app/static/results /app/static/models \
+    /app/uploads /app/results /app/models /app/datasets \
+    && chmod -R 777 /app /tmp
 
 # Exponer el puerto que utiliza la aplicación
 EXPOSE 7860
