@@ -39,6 +39,41 @@
     .detection-table {
         margin-top: 1rem;
     }
+    .camera-container {
+        width: 100%;
+        margin: 0 auto;
+        text-align: center;
+        position: relative;
+    }
+    .camera-feed {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa;
+    }
+    .camera-controls {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .camera-snapshot {
+        display: none;
+        margin-top: 1rem;
+    }
+    .camera-snapshot img {
+        max-width: 100%;
+        border-radius: 8px;
+        border: 1px solid #0d6efd;
+    }
+    .uploaded-image-container {
+        display: none;
+        text-align: center;
+    }
+    .uploaded-image {
+        max-height: 300px;
+    }
 </style>
 {% endblock %}
 
@@ -56,6 +91,9 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">Image URL</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button" role="tab">Take Photo</button>
+            </li>
         </ul>
         
         <div class="tab-content" id="inputTabsContent">
@@ -65,14 +103,14 @@
                     <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
                     <h5>Drag & Drop an image here</h5>
                     <p class="text-muted">or</p>
-                    <input type="file" id="fileInput" class="d-none" accept="image/*">
+                    <input type="file" id="fileInput" class="d-none" accept="image/*" title="Select an image file to upload">
                     <button class="btn btn-primary" id="browseButton">Browse Files</button>
                 </div>
-                <div id="uploadedImageContainer" style="display: none;">
+                <div id="uploadedImageContainer" class="uploaded-image-container">
                     <div class="text-center">
-                        <img id="uploadedImage" class="img-fluid rounded mb-3" style="max-height: 300px;">
+                        <img id="uploadedImage" class="img-fluid rounded mb-3 uploaded-image" alt="Uploaded image for object detection">
                         <div>
-                            <button class="btn btn-outline-danger btn-sm" id="removeImage">
+                            <button class="btn btn-outline-danger btn-sm" id="removeImage" title="Remove this image">
                                 <i class="bi bi-x-circle"></i> Remove
                             </button>
                         </div>
@@ -85,6 +123,29 @@
                 <div class="my-4">
                     <label for="imageUrl" class="form-label">Image URL</label>
                     <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+            </div>
+            
+            <!-- Camera Tab -->
+            <div class="tab-pane fade" id="camera" role="tabpanel">
+                <div class="my-4">
+                    <div class="camera-container">
+                        <video id="cameraFeed" class="camera-feed" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <button id="startCameraBtn" class="btn btn-primary">
+                                <i class="bi bi-camera-video"></i> Start Camera
+                            </button>
+                            <button id="takePictureBtn" class="btn btn-success" disabled>
+                                <i class="bi bi-camera"></i> Take Picture
+                            </button>
+                            <button id="retakePictureBtn" class="btn btn-secondary" disabled>
+                                <i class="bi bi-arrow-counterclockwise"></i> Retake
+                            </button>
+                        </div>
+                        <div id="cameraSnapshot" class="camera-snapshot">
+                            <img id="capturedImage" class="img-fluid rounded shadow" alt="Captured Image">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -157,8 +218,8 @@
         const fileInput = document.getElementById('fileInput');
         const browseButton = document.getElementById('browseButton');
         const dropArea = document.getElementById('dropArea');
-        const uploadedImage = document.getElementById('uploadedImage');
         const uploadedImageContainer = document.getElementById('uploadedImageContainer');
+        const uploadedImage = document.getElementById('uploadedImage');
         const removeImageButton = document.getElementById('removeImage');
         const imageUrlInput = document.getElementById('imageUrl');
         const confidenceSlider = document.getElementById('confidenceSlider');
@@ -170,9 +231,20 @@
         const detectionResults = document.getElementById('detectionResults');
         const totalObjects = document.getElementById('totalObjects');
         
-        // Variables
+        // Camera elements
+        const cameraFeed = document.getElementById('cameraFeed');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const takePictureBtn = document.getElementById('takePictureBtn');
+        const retakePictureBtn = document.getElementById('retakePictureBtn');
+        const cameraSnapshot = document.getElementById('cameraSnapshot');
+        const capturedImage = document.getElementById('capturedImage');
+        
+        // State variables
         let currentFile = null;
         let currentTab = 'upload';
+        let stream = null;
+        let cameraActive = false;
+        let capturedImageData = null;
         
         // Event: Browse button clicked
         browseButton.addEventListener('click', () => {
@@ -182,6 +254,11 @@
         // Event: Tab changed
         $('#inputTabs button').on('shown.bs.tab', function (e) {
             currentTab = e.target.id.split('-')[0];
+            
+            // If switching away from camera tab, stop the camera
+            if (e.relatedTarget && e.relatedTarget.id === 'camera-tab' && stream) {
+                stopCamera();
+            }
         });
         
         // Event: File selected
@@ -229,6 +306,86 @@
             confidenceValue.textContent = confidenceSlider.value;
         });
         
+        // Camera functionality
+        startCameraBtn.addEventListener('click', startCamera);
+        takePictureBtn.addEventListener('click', takePicture);
+        retakePictureBtn.addEventListener('click', retakePicture);
+        
+        function startCamera() {
+            if (cameraActive) return;
+            
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then(videoStream => {
+                    stream = videoStream;
+                    cameraFeed.srcObject = stream;
+                    cameraActive = true;
+                    takePictureBtn.disabled = false;
+                    startCameraBtn.disabled = true;
+                    retakePictureBtn.disabled = true;
+                    cameraSnapshot.style.display = 'none';
+                })
+                .catch(err => {
+                    console.error('Error accessing camera:', err);
+                    alert('Could not access camera. Please ensure you have granted permission to use the camera.');
+                });
+        }
+        
+        function stopCamera() {
+            if (!stream) return;
+            
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+            stream = null;
+            cameraActive = false;
+            takePictureBtn.disabled = true;
+            startCameraBtn.disabled = false;
+        }
+        
+        function takePicture() {
+            if (!cameraActive) return;
+            
+            // Create a canvas to capture the image
+            const canvas = document.createElement('canvas');
+            canvas.width = cameraFeed.videoWidth;
+            canvas.height = cameraFeed.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw the current video frame to the canvas
+            ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+            
+            // Convert the canvas to a data URL and display it
+            capturedImageData = canvas.toDataURL('image/jpeg');
+            capturedImage.src = capturedImageData;
+            cameraSnapshot.style.display = 'block';
+            
+            // Stop the camera after taking a picture
+            stopCamera();
+            
+            // Enable retake button
+            retakePictureBtn.disabled = false;
+        }
+        
+        function retakePicture() {
+            capturedImageData = null;
+            cameraSnapshot.style.display = 'none';
+            startCamera();
+        }
+        
+        // Function to convert data URL to a Blob
+        function dataURLtoBlob(dataURL) {
+            const parts = dataURL.split(';base64,');
+            const contentType = parts[0].split(':')[1];
+            const raw = window.atob(parts[1]);
+            const rawLength = raw.length;
+            const uInt8Array = new Uint8Array(rawLength);
+            
+            for (let i = 0; i < rawLength; ++i) {
+                uInt8Array[i] = raw.charCodeAt(i);
+            }
+            
+            return new Blob([uInt8Array], { type: contentType });
+        }
+        
         // Function: Handle file upload
         function handleFileUpload(file) {
             if (file && file.type.startsWith('image/')) {
@@ -259,6 +416,11 @@
                 return;
             }
             
+            if (currentTab === 'camera' && !capturedImageData) {
+                alert('Please take a picture first.');
+                return;
+            }
+            
             // Show loading spinner
             loadingSpinner.style.display = 'block';
             resultContainer.style.display = 'none';
@@ -270,8 +432,12 @@
             
             if (currentTab === 'upload') {
                 formData.append('image', currentFile);
-            } else {
+            } else if (currentTab === 'url') {
                 formData.append('url', imageUrlInput.value);
+            } else if (currentTab === 'camera') {
+                // Convert data URL to Blob and append to form
+                const imageBlob = dataURLtoBlob(capturedImageData);
+                formData.append('image', imageBlob, 'camera_capture.jpg');
             }
             
             // Send request to server
