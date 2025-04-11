@@ -20,10 +20,13 @@ from ultralytics import YOLO
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max upload size
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['RESULTS_FOLDER'] = 'results'
-app.config['MODELS_FOLDER'] = 'models'
-app.config['DATASETS_FOLDER'] = 'datasets'
+
+# Configuración de carpetas con rutas absolutas
+app_dir = os.path.dirname(os.path.abspath(__file__))
+app.config['UPLOAD_FOLDER'] = os.path.join(app_dir, 'static', 'uploads')
+app.config['RESULTS_FOLDER'] = os.path.join(app_dir, 'static', 'results')
+app.config['MODELS_FOLDER'] = os.path.join(app_dir, 'static', 'models')
+app.config['DATASETS_FOLDER'] = os.path.join(app_dir, 'static', 'datasets')
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'avi', 'zip'}
 
 # Create necessary directories
@@ -31,7 +34,10 @@ for folder in [app.config['UPLOAD_FOLDER'],
                app.config['RESULTS_FOLDER'], 
                app.config['MODELS_FOLDER'], 
                app.config['DATASETS_FOLDER']]:
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError as e:
+        print(f"Error creating directory: {e}")
 
 # Global variables
 camera = None
@@ -581,12 +587,12 @@ def api_capture_frame():
 @app.route('/results/<filename>')
 def results(filename):
     """Serve result files"""
-    return send_file(os.path.join(app.config['RESULTS_FOLDER'], filename))
+    return send_file(os.path.abspath(os.path.join(app.config['RESULTS_FOLDER'], filename)))
 
 @app.route('/models/<filename>')
 def models(filename):
     """Serve model files"""
-    return send_file(os.path.join(app.config['MODELS_FOLDER'], filename))
+    return send_file(os.path.abspath(os.path.join(app.config['MODELS_FOLDER'], filename)))
 
 @app.route('/api/list-models')
 def api_list_models():
