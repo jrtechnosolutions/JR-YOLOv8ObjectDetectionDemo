@@ -37,10 +37,12 @@
         margin: 2rem 0;
     }
     .class-bar {
-        height: 25px;
-        border-radius: 4px;
-        margin-bottom: 8px;
+        height: 30px;
+        border-radius: 6px;
+        margin-bottom: 10px;
         position: relative;
+        background-color: #f0f0f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .class-bar .progress-bar {
         position: absolute;
@@ -48,24 +50,57 @@
         left: 0;
         height: 100%;
         background-color: #0d6efd;
-        border-radius: 4px;
+        border-radius: 6px;
         transition: width 0.6s ease;
     }
     .class-bar .class-label {
         position: absolute;
-        left: 8px;
-        top: 3px;
+        left: 10px;
+        top: 4px;
         color: #fff;
-        font-size: 0.875rem;
+        font-size: 1rem;
+        font-weight: 600;
         z-index: 1;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
     .class-bar .class-percentage {
         position: absolute;
-        right: 8px;
-        top: 3px;
+        right: 10px;
+        top: 4px;
         color: #fff;
-        font-size: 0.875rem;
+        font-size: 1rem;
+        font-weight: 600;
         z-index: 1;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    }
+    .result-image-container {
+        border: 3px solid #0d6efd;
+        border-radius: 8px;
+        padding: 5px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease;
+    }
+    .result-image-container:hover {
+        transform: scale(1.02);
+    }
+    .top-prediction {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border-left: 5px solid #0d6efd;
+    }
+    .top-prediction h4 {
+        color: #0d6efd;
+        margin-bottom: 5px;
+    }
+    .uploaded-image-container {
+        display: none;
+        text-align: center;
+    }
+    .uploaded-image {
+        max-height: 300px;
     }
 </style>
 {% endblock %}
@@ -93,14 +128,14 @@
                     <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
                     <h5>Drag & Drop an image here</h5>
                     <p class="text-muted">or</p>
-                    <input type="file" id="fileInput" class="d-none" accept="image/*">
+                    <input type="file" id="fileInput" class="d-none" accept="image/*" title="Select an image file to upload">
                     <button class="btn btn-primary" id="browseButton">Browse Files</button>
                 </div>
-                <div id="uploadedImageContainer" style="display: none;">
+                <div id="uploadedImageContainer" class="uploaded-image-container">
                     <div class="text-center">
-                        <img id="uploadedImage" class="img-fluid rounded mb-3" style="max-height: 300px;">
+                        <img id="uploadedImage" class="img-fluid rounded mb-3 uploaded-image" alt="Uploaded image for classification">
                         <div>
-                            <button class="btn btn-outline-danger btn-sm" id="removeImage">
+                            <button class="btn btn-outline-danger btn-sm" id="removeImage" title="Remove this image">
                                 <i class="bi bi-x-circle"></i> Remove
                             </button>
                         </div>
@@ -112,7 +147,7 @@
             <div class="tab-pane fade" id="url" role="tabpanel">
                 <div class="my-4">
                     <label for="imageUrl" class="form-label">Image URL</label>
-                    <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg">
+                    <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg" title="Enter the URL of an image to classify">
                 </div>
             </div>
         </div>
@@ -123,14 +158,14 @@
             <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
         </div>
         
-        <!-- Classify Button -->
-        <div class="d-grid">
-            <button id="classifyButton" class="btn btn-primary btn-lg">
-                <i class="bi bi-tags"></i> Classify Image
+        <!-- Classify button -->
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary" id="classifyButton" type="button">
+                <i class="bi bi-search"></i> Classify Image
             </button>
         </div>
         
-        <!-- Loading Spinner -->
+        <!-- Loading spinner -->
         <div class="loading-spinner" id="loadingSpinner">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -140,29 +175,24 @@
         
         <!-- Results -->
         <div class="result-container" id="resultContainer">
-            <h3>Classification Results</h3>
+            <h3 class="mb-4">Classification Results</h3>
             <div class="row">
                 <div class="col-md-6">
                     <div class="text-center mb-4">
-                        <img id="uploadedImageResult" class="img-fluid rounded shadow" alt="Original Image">
+                        <div class="result-image-container">
+                            <img id="uploadedImageResult" class="img-fluid rounded" alt="Processed image with detected classes">
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Detected Classes</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="topPrediction" class="mb-3">
-                                <h4 class="text-center" id="topClass">Unknown</h4>
-                                <p class="text-center text-muted">Top prediction</p>
-                            </div>
-                            <hr>
-                            <h6>All Predictions:</h6>
-                            <div id="classResults">
-                                <!-- Results will be populated here -->
-                            </div>
-                        </div>
+                    <div class="top-prediction">
+                        <h4>Top Prediction</h4>
+                        <h2 id="topClass" class="display-6 mb-0"></h2>
+                    </div>
+
+                    <h5 class="mt-4 mb-3">All Predictions:</h5>
+                    <div id="classResults">
+                        <!-- Results will be populated here -->
                     </div>
                 </div>
             </div>
@@ -334,20 +364,35 @@
                     // Clear previous results
                     classResults.innerHTML = '';
                     
-                    // Add all results as bars
-                    resultsArray.forEach(([className, probability]) => {
+                    // Add only the top 5 results as bars (or all if less than 5)
+                    const maxResultsToShow = 5;
+                    resultsArray.slice(0, maxResultsToShow).forEach(([className, probability]) => {
                         const percentage = (probability * 100).toFixed(1);
+                        
+                        // Choose a color based on the probability
+                        let barColor;
+                        if (probability > 0.7) barColor = '#198754'; // success/green for high confidence
+                        else if (probability > 0.4) barColor = '#0d6efd'; // primary/blue for medium
+                        else barColor = '#6c757d'; // secondary/gray for low confidence
                         
                         const barContainer = document.createElement('div');
                         barContainer.className = 'class-bar';
                         barContainer.innerHTML = `
-                            <div class="progress-bar" style="width: ${percentage}%"></div>
+                            <div class="progress-bar" style="width: ${percentage}%; background-color: ${barColor};"></div>
                             <span class="class-label">${className}</span>
                             <span class="class-percentage">${percentage}%</span>
                         `;
                         
                         classResults.appendChild(barContainer);
                     });
+                    
+                    // If there are more results not shown, add a message
+                    if (resultsArray.length > maxResultsToShow) {
+                        const moreResults = document.createElement('p');
+                        moreResults.className = 'text-muted mt-2';
+                        moreResults.textContent = `+ ${resultsArray.length - maxResultsToShow} more classes with lower confidence`;
+                        classResults.appendChild(moreResults);
+                    }
                 } else {
                     alert('Error: ' + (data.error || 'Failed to process image'));
                 }
