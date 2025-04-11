@@ -3,8 +3,8 @@ title: YOLO Vision AI
 emoji: 🔍
 colorFrom: blue
 colorTo: green
-sdk: flask
-sdk_version: 2.0.1
+sdk: docker
+sdk_version: 3.8.0
 app_file: app.py
 pinned: false
 ---
