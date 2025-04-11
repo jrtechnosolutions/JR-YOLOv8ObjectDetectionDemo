@@ -67,10 +67,13 @@ def load_model(model_type):
     
     model_path = os.path.join(app.config['MODELS_FOLDER'], models[model_type])
     
-    # Download model if it doesn't exist
+    # Download model if it doesn't exist - ya no usamos model.save()
     if not os.path.exists(model_path):
+        # Descargamos directamente del repo de Ultralytics
         model = YOLO(models[model_type])
-        model.save(model_path)
+        # Copiamos el archivo descargado a nuestra carpeta de modelos
+        if os.path.exists(models[model_type]):
+            shutil.copy(models[model_type], model_path)
     else:
         model = YOLO(model_path)
     

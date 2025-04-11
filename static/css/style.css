@@ -1,0 +1,74 @@
+/* YOLO Vision AI - Estilos principales */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.card {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.upload-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 3rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    transition: all 0.2s ease;
+    background-color: #f8f9fa;
+}
+
+.upload-area:hover {
+    border-color: #0d6efd;
+    background-color: #f1f8ff;
+}
+
+.upload-area.dragover {
+    background-color: #e8f4ff;
+    border-color: #0d6efd;
+}
+
+.footer {
+    background-color: #343a40;
+    color: #fff;
+    padding: 2rem 0;
+}
+
+.footer a {
+    color: #fff;
+    text-decoration: none;
+}
+
+.footer a:hover {
+    text-decoration: underline;
+}
+
+.feature-card {
+    padding: 20px;
+    border-radius: 8px;
+    transition: transform 0.3s;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+}
+
+.loading-spinner {
+    display: none;
+    text-align: center;
+    margin: 2rem 0;
+}
+
+.result-container {
+    display: none;
+    margin-top: 2rem;
+}
