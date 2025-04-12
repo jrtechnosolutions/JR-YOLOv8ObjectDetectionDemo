@@ -127,11 +127,25 @@ function renderModelDetails(model) {
     const classesContainer = document.getElementById('classesContainer');
     classesContainer.innerHTML = '';
     
+    // Verificar la estructura del objeto model y sus datos
+    console.log("Model data for classes:", model);
+    console.log("Model info:", model.model_info);
+    console.log("Classes data:", model.model_info?.classes);
+    
+    // Asegurarnos de tener datos de clases, incluso si no están en la ubicación esperada
+    let classesData = null;
+    
     if (model.model_info && model.model_info.classes) {
-        const classes = model.model_info.classes;
-        
+        classesData = model.model_info.classes;
+    } else if (model.classes) {
+        classesData = model.classes;
+    } else if (model.model_info && model.model_info.names) {
+        classesData = model.model_info.names;
+    }
+    
+    if (classesData && Object.keys(classesData).length > 0) {
         // Mostrar mensaje de introducción con el número de clases
-        const classCount = Object.keys(classes).length;
+        const classCount = Object.keys(classesData).length;
         const introDiv = document.createElement('div');
         introDiv.className = 'col-12 mb-3';
         introDiv.innerHTML = `
@@ -142,7 +156,7 @@ function renderModelDetails(model) {
         classesContainer.appendChild(introDiv);
         
         // Mostrar cada clase con su ID y nombre
-        Object.entries(classes).forEach(([classId, className]) => {
+        Object.entries(classesData).forEach(([classId, className]) => {
             const classCol = document.createElement('div');
             classCol.className = 'col-lg-3 col-md-4 col-sm-6 mb-3';
             classCol.innerHTML = `
@@ -156,10 +170,13 @@ function renderModelDetails(model) {
             classesContainer.appendChild(classCol);
         });
     } else {
+        // Fallback para cuando no hay información de clases
         classesContainer.innerHTML = `
             <div class="col-12">
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> No class information available for this model.
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle"></i> Class Information</h5>
+                    <p>This model has been trained for object detection. However, detailed class information is not available.</p>
+                    <p>The model may still be able to detect common objects like persons, cars, animals, etc. depending on the training dataset.</p>
                 </div>
             </div>
         `;
