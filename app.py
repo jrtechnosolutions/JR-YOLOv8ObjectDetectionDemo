@@ -991,6 +991,9 @@ def api_list_models():
     # Ensure directory exists
     os.makedirs(app.config['MODELS_FOLDER'], exist_ok=True)
     
+    # Log to help debugging
+    print(f"Searching for models in: {app.config['MODELS_FOLDER']}")
+    
     # List all .pt and .onnx files in the models directory and subdirectories
     for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
         for file in files:
@@ -1000,13 +1003,41 @@ def api_list_models():
                 rel_path = os.path.relpath(model_path, app.config['MODELS_FOLDER'])
                 model_name = os.path.splitext(os.path.basename(file))[0]
                 
+                print(f"Found model: {model_name} at {model_path}")
+                
                 # Determinar el directorio del modelo (puede ser .../model_name/weights/best.pt)
                 model_dir = os.path.dirname(model_path)
                 if os.path.basename(model_dir) == 'weights':
                     model_dir = os.path.dirname(model_dir)
                 
+                print(f"Model directory: {model_dir}")
+                
                 # Verificar si hay gráficos y reportes
                 training_files = {}
+                
+                # Primero buscar en el directorio actual
+                # Luego buscar en el subdirectorio "runs/train/exp*/", que es donde YOLOv8 normalmente guarda los resultados
+                search_dirs = [model_dir]
+                
+                # Buscar cualquier directorio 'runs' en el directorio del modelo o sus padres
+                for search_dir in [model_dir, os.path.dirname(model_dir), os.path.dirname(os.path.dirname(model_dir))]:
+                    runs_dir = os.path.join(search_dir, 'runs', 'train')
+                    if os.path.exists(runs_dir):
+                        # Buscar el directorio exp más reciente
+                        exp_dirs = [d for d in os.listdir(runs_dir) if d.startswith('exp')]
+                        if exp_dirs:
+                            # Ordenar por fecha de modificación, más reciente primero
+                            exp_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(runs_dir, d)), reverse=True)
+                            search_dirs.append(os.path.join(runs_dir, exp_dirs[0]))
+                
+                # Añadir búsqueda en subdirectorios específicos de HuggingFace Spaces
+                app_static_dir = os.path.join(app_dir, 'static')
+                hf_runs_dir = os.path.join(app_static_dir, 'models', 'runs', 'train')
+                if os.path.exists(hf_runs_dir):
+                    exp_dirs = [d for d in os.listdir(hf_runs_dir) if d.startswith('exp')]
+                    if exp_dirs:
+                        exp_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(hf_runs_dir, d)), reverse=True)
+                        search_dirs.append(os.path.join(hf_runs_dir, exp_dirs[0]))
                 
                 # Archivos comunes generados por YOLOv8 durante el entrenamiento
                 potential_files = [
@@ -1021,11 +1052,15 @@ def api_list_models():
                     'args.yaml',                 # Configuración del entrenamiento
                 ]
                 
-                for potential_file in potential_files:
-                    file_path = os.path.join(model_dir, potential_file)
-                    if os.path.exists(file_path):
-                        rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
-                        training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
+                # Buscar archivos en todos los directorios candidatos
+                for search_dir in search_dirs:
+                    print(f"Searching for training artifacts in: {search_dir}")
+                    for potential_file in potential_files:
+                        file_path = os.path.join(search_dir, potential_file)
+                        if os.path.exists(file_path):
+                            print(f"Found artifact: {potential_file} at {file_path}")
+                            rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
+                            training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
                 
                 # Check if there's a corresponding ONNX model
                 onnx_path = model_path.replace('.pt', '.onnx')
@@ -1037,24 +1072,31 @@ def api_list_models():
                 
                 # Try to read metrics from the results.csv file
                 metrics = {}
-                csv_path = os.path.join(model_dir, 'results.csv')
-                if os.path.exists(csv_path):
-                    try:
-                        with open(csv_path, 'r') as f:
-                            lines = f.readlines()
-                            if len(lines) >= 2:  # Header + at least one data row
-                                header = lines[0].strip().split(',')
-                                last_row = lines[-1].strip().split(',')
-                                
-                                # Create a dictionary of metrics from the last row
-                                for i, key in enumerate(header):
-                                    if i < len(last_row):
-                                        try:
-                                            metrics[key] = float(last_row[i])
-                                        except (ValueError, TypeError):
-                                            metrics[key] = last_row[i]
-                    except Exception as e:
-                        print(f"Error reading metrics: {e}")
+                
+                # Buscar results.csv en todos los directorios candidatos
+                for search_dir in search_dirs:
+                    csv_path = os.path.join(search_dir, 'results.csv')
+                    if os.path.exists(csv_path):
+                        try:
+                            with open(csv_path, 'r') as f:
+                                lines = f.readlines()
+                                if len(lines) >= 2:  # Header + at least one data row
+                                    header = lines[0].strip().split(',')
+                                    last_row = lines[-1].strip().split(',')
+                                    
+                                    # Create a dictionary of metrics from the last row
+                                    for i, key in enumerate(header):
+                                        if i < len(last_row):
+                                            try:
+                                                metrics[key] = float(last_row[i])
+                                            except (ValueError, TypeError):
+                                                metrics[key] = last_row[i]
+                            # Si encontramos un archivo de resultados válido, salimos del bucle
+                            if metrics:
+                                print(f"Loaded metrics from: {csv_path}")
+                                break
+                        except Exception as e:
+                            print(f"Error reading metrics from {csv_path}: {e}")
                 
                 # Get model information if available
                 model_info = {
@@ -1064,16 +1106,20 @@ def api_list_models():
                 }
                 
                 # Extract model classes if available
-                yaml_files = [f for f in os.listdir(model_dir) if f.endswith('.yaml') and f != 'args.yaml']
-                for yaml_file in yaml_files:
-                    try:
-                        with open(os.path.join(model_dir, yaml_file), 'r') as f:
-                            yaml_data = yaml.safe_load(f)
-                            if isinstance(yaml_data, dict) and 'names' in yaml_data:
-                                model_info['classes'] = yaml_data['names']
-                                break
-                    except:
-                        pass
+                for search_dir in search_dirs:
+                    yaml_files = [f for f in os.listdir(search_dir) if f.endswith('.yaml') and f != 'args.yaml']
+                    for yaml_file in yaml_files:
+                        try:
+                            with open(os.path.join(search_dir, yaml_file), 'r') as f:
+                                yaml_data = yaml.safe_load(f)
+                                if isinstance(yaml_data, dict) and 'names' in yaml_data:
+                                    model_info['classes'] = yaml_data['names']
+                                    print(f"Found class names in: {yaml_file}")
+                                    break
+                        except Exception as e:
+                            print(f"Error reading YAML file {yaml_file}: {e}")
+                    if model_info['classes']:
+                        break
                 
                 models.append({
                     'name': model_name,
@@ -1090,12 +1136,28 @@ def api_list_models():
                     'model_dir': os.path.relpath(model_dir, app.config['MODELS_FOLDER'])
                 })
     
+    print(f"Found {len(models)} models total")
     return jsonify(models)
 
 @app.route('/model_artifact/<path:path>')
 def model_artifact(path):
     """Serve model artifacts like graphs and training files"""
-    return send_file(os.path.join(app.config['MODELS_FOLDER'], path))
+    # Intentar diferentes rutas posibles para encontrar el archivo
+    possible_paths = [
+        os.path.join(app.config['MODELS_FOLDER'], path),                # Ruta normal
+        os.path.join(app_dir, 'static', 'models', path),                # Ruta alternativa en static
+        os.path.join(app_dir, path)                                     # Ruta relativa desde la raíz de la app
+    ]
+    
+    for test_path in possible_paths:
+        if os.path.exists(test_path) and os.path.isfile(test_path):
+            print(f"Serving artifact from: {test_path}")
+            return send_file(test_path)
+    
+    # Si no se encuentra, devolver un error 404
+    print(f"Artifact not found: {path}")
+    print(f"Tried paths: {possible_paths}")
+    return "Artifact not found", 404
 
 @app.route('/model/<path:model_dir>/weights/<path:model_file>')
 def serve_model_file(model_dir, model_file):
