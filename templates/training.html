@@ -504,7 +504,7 @@
                     }
                     
                     // Check if training is complete
-                    if (data.complete) {
+                    if (data.complete || data.progress >= 100) {
                         // Stop polling
                         clearInterval(trainingInterval);
                         
