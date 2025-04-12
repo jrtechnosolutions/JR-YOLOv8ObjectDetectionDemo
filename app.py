@@ -1370,6 +1370,25 @@ def api_model_details():
         # Add args.yaml if available
         if os.path.exists(args_file):
             model_data['args_file'] = f'/models/{model_id}/args.yaml'
+            # Check if this is a trained model with YAML config
+            try:
+                import yaml
+                with open(args_file, 'r') as f:
+                    yaml_config = yaml.safe_load(f)
+                    app.logger.info(f"Loaded YAML config for model {model_id}: {yaml_config}")
+                    
+                    # Check if there's a data.yaml file referenced
+                    if 'data' in yaml_config and os.path.exists(yaml_config['data']):
+                        with open(yaml_config['data'], 'r') as data_file:
+                            data_config = yaml.safe_load(data_file)
+                            app.logger.info(f"Loaded data config from {yaml_config['data']}: {data_config}")
+                            
+                            # Extract class names from data.yaml
+                            if 'names' in data_config:
+                                model_data['model_info']['classes'] = data_config['names']
+                                app.logger.info(f"Added class names from data.yaml: {data_config['names']}")
+            except Exception as e:
+                app.logger.error(f"Error reading YAML config: {str(e)}")
         
         # Try to load the actual model to get class information if it's not already in model_info
         if 'classes' not in model_data['model_info'] and os.path.exists(model_path):
