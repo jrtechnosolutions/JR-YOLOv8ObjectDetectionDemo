@@ -310,8 +310,8 @@
             <!-- Metrics Tab -->
             <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
                 <div class="alert alert-info mb-3">
-                    <h5><i class="bi bi-info-circle"></i> Interpretación de Métricas</h5>
-                    <p>Las métricas de detección de objetos evalúan la capacidad del modelo para identificar y localizar objetos correctamente. Valores más altos (cercanos a 1.0) indican mejor rendimiento.</p>
+                    <h5><i class="bi bi-info-circle"></i> Metrics Interpretation</h5>
+                    <p>Object detection metrics evaluate the model's ability to correctly identify and locate objects. Higher values (closer to 1.0) indicate better performance.</p>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-striped table-sm metrics-table">
@@ -331,8 +331,8 @@
             <!-- Visualizations Tab -->
             <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
                 <div class="alert alert-info mb-3">
-                    <h5><i class="bi bi-info-circle"></i> Interpretación de Gráficos</h5>
-                    <p>Los gráficos visualizan el rendimiento del modelo durante el entrenamiento. Haz clic en cualquier imagen para verla ampliada. Las curvas que muestran tendencia ascendente generalmente indican mejora del modelo.</p>
+                    <h5><i class="bi bi-info-circle"></i> Graph Interpretation</h5>
+                    <p>These graphs visualize the model's performance during training. Click on any image to view it in full size. Curves showing an upward trend generally indicate model improvement.</p>
                 </div>
                 <div class="row row-cols-1 row-cols-md-2 g-4" id="visualizationsGallery">
                     <!-- Visualizations will be populated here -->
@@ -611,7 +611,8 @@
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between align-items-center';
                 li.innerHTML = `
-                    <span data-bs-toggle="tooltip" data-bs-placement="left" title="${item.tooltip || ''}">${item.label}</span>
+                    <span data-bs-toggle="tooltip" data-bs-placement="left" 
+                          title="${item.tooltip || ''}">${item.label}</span>
                     <span class="badge bg-primary rounded-pill">${item.value}</span>
                 `;
                 modelInfoList.appendChild(li);
@@ -647,7 +648,8 @@
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
                     li.innerHTML = `
-                        <span data-bs-toggle="tooltip" data-bs-placement="left" title="${item.tooltip || ''}">${item.label}</span>
+                        <span data-bs-toggle="tooltip" data-bs-placement="left" 
+                              title="${item.tooltip || ''}">${item.label}</span>
                         <span class="badge bg-success rounded-pill">${item.value}</span>
                     `;
                     performanceList.appendChild(li);
@@ -682,22 +684,22 @@
             
             // Diccionario de explicaciones para métricas comunes
             const metricExplanations = {
-                'precision': 'Porcentaje de detecciones que son correctas. Valores más altos indican menos falsos positivos.',
-                'recall': 'Porcentaje de objetos reales que fueron detectados. Valores más altos indican menos falsos negativos.',
-                'mAP50': 'Mean Average Precision con umbral IoU de 0.5. Métrica estándar para evaluar modelos de detección.',
-                'mAP50-95': 'Media de mAP en distintos umbrales de IoU (0.5-0.95). Métrica más rigurosa que evalúa localización precisa.',
-                'box_loss': 'Pérdida en las predicciones de las cajas delimitadoras. Valores más bajos son mejores.',
-                'cls_loss': 'Pérdida en las predicciones de clase. Valores más bajos indican mejor clasificación.',
-                'dfl_loss': 'Distribution Focal Loss, relacionado con la calidad de las predicciones. Valores más bajos son mejores.',
-                'fitness': 'Puntuación general que combina precisión y recall. Valores más altos indican mejor rendimiento general.',
-                'epochs': 'Número total de épocas de entrenamiento completadas.',
-                'lr0': 'Tasa de aprendizaje inicial.',
-                'lrf': 'Tasa de aprendizaje final.',
-                'patience': 'Número de épocas sin mejora antes de detener el entrenamiento (early stopping).',
-                'time': 'Tiempo total de entrenamiento.',
-                'val/box_loss': 'Pérdida de cajas delimitadoras en el conjunto de validación.',
-                'val/cls_loss': 'Pérdida de clasificación en el conjunto de validación.',
-                'val/dfl_loss': 'Distribution Focal Loss en el conjunto de validación.'
+                'precision': 'Percentage of detections that are correct. Higher values indicate fewer false positives.',
+                'recall': 'Percentage of actual objects that were detected. Higher values indicate fewer false negatives.',
+                'mAP50': 'Mean Average Precision with IoU threshold of 0.5. Standard metric for evaluating detection models.',
+                'mAP50-95': 'Average of mAP across different IoU thresholds (0.5-0.95). More rigorous metric that evaluates precise localization.',
+                'box_loss': 'Loss in bounding box predictions. Lower values are better.',
+                'cls_loss': 'Loss in class predictions. Lower values indicate better classification.',
+                'dfl_loss': 'Distribution Focal Loss, related to prediction quality. Lower values are better.',
+                'fitness': 'Overall score combining precision and recall. Higher values indicate better overall performance.',
+                'epochs': 'Total number of completed training epochs.',
+                'lr0': 'Initial learning rate.',
+                'lrf': 'Final learning rate.',
+                'patience': 'Number of epochs without improvement before stopping training (early stopping).',
+                'time': 'Total training time.',
+                'val/box_loss': 'Bounding box loss on validation set.',
+                'val/cls_loss': 'Classification loss on validation set.',
+                'val/dfl_loss': 'Distribution Focal Loss on validation set.'
             };
             
             // Add all metrics to table
@@ -758,31 +760,31 @@
             const fileLabels = {
                 'labels.jpg': {
                     title: 'Dataset Labels', 
-                    explanation: 'Muestra la distribución de clases en el conjunto de datos. Barras más altas indican más ejemplos de esa clase.'
+                    explanation: 'Shows the distribution of classes in the dataset. Taller bars indicate more examples of that class.'
                 },
                 'results.png': {
                     title: 'Training Results', 
-                    explanation: 'Resumen del entrenamiento con métricas clave como precisión, recall y pérdidas a lo largo de las épocas. Las curvas descendentes de pérdida indican progreso en el aprendizaje.'
+                    explanation: 'Summary of training with key metrics like precision, recall, and losses over epochs. Descending loss curves indicate learning progress.'
                 },
                 'confusion_matrix.png': {
                     title: 'Confusion Matrix',
-                    explanation: 'Visualiza qué clases se confunden entre sí. Los valores en la diagonal principal deberían ser altos, indicando predicciones correctas.'
+                    explanation: 'Visualizes which classes are confused with each other. High values on the main diagonal indicate correct predictions.'
                 },
                 'PR_curve.png': {
                     title: 'Precision-Recall Curve',
-                    explanation: 'Muestra el balance entre precisión y recall. Un área mayor bajo la curva indica mejor rendimiento.'
+                    explanation: 'Shows the balance between precision and recall. A larger area under the curve indicates better performance.'
                 },
                 'F1_curve.png': {
                     title: 'F1 Curve',
-                    explanation: 'La puntuación F1 es la media armónica de precisión y recall. Valores más altos indican mejor equilibrio entre ambas métricas.'
+                    explanation: 'The F1 score is the harmonic mean of precision and recall. Higher values indicate better balance between both metrics.'
                 },
                 'P_curve.png': {
                     title: 'Precision Curve',
-                    explanation: 'Muestra la precisión (% de detecciones correctas) en diferentes umbrales de confianza.'
+                    explanation: 'Shows precision (% of correct detections) at different confidence thresholds.'
                 },
                 'R_curve.png': {
                     title: 'Recall Curve',
-                    explanation: 'Muestra el recall (% de objetos detectados) en diferentes umbrales de confianza.'
+                    explanation: 'Shows recall (% of objects detected) at different confidence thresholds.'
                 }
             };
             
@@ -793,7 +795,7 @@
                     const col = document.createElement('div');
                     col.className = 'col';
                     
-                    const fileInfo = fileLabels[filename] || { title: filename, explanation: 'Gráfico de entrenamiento' };
+                    const fileInfo = fileLabels[filename] || { title: filename, explanation: 'Training graph' };
                     
                     col.innerHTML = `
                         <div class="card model-artifact h-100">
@@ -803,14 +805,125 @@
                             </div>
                             <img src="${url}" class="artifact-thumbnail" alt="${fileInfo.title}" 
                                  onclick="window.open('${url}', '_blank', 'width=800,height=600')">
+                            <div class="card-footer">
+                                <small class="text-muted">${fileInfo.explanation}</small>
+                                <div class="mt-2 small" id="graph-analysis-${filename.replace('.', '-')}">
+                                    Analyzing results...
+                                </div>
+                            </div>
                         </div>
                     `;
                     visualizationsGallery.appendChild(col);
+                    
+                    // After adding to DOM, analyze the graph and add specific interpretation
+                    setTimeout(() => {
+                        analyzeGraphAndAddInterpretation(filename, model);
+                    }, 100);
                 }
             });
             
             // Initialize tooltips after adding elements
             setTimeout(initializeTooltips, 100);
+        }
+        
+        function analyzeGraphAndAddInterpretation(filename, model) {
+            const graphAnalysisElement = document.getElementById(`graph-analysis-${filename.replace('.', '-')}`);
+            if (!graphAnalysisElement) return;
+            
+            let interpretation = '';
+            
+            // Get metrics to use in analysis
+            const precision = model.metrics?.precision || model.metrics?.['metrics/precision(B)'] || 0;
+            const recall = model.metrics?.recall || model.metrics?.['metrics/recall(B)'] || 0;
+            const mAP50 = model.metrics?.mAP50 || model.metrics?.['metrics/mAP50(B)'] || 0;
+            
+            // Specific interpretation based on filename
+            switch(filename) {
+                case 'labels.jpg':
+                    interpretation = `This dataset contains ${Object.keys(model.model_info.classes || {}).length} 
+                                     different classes. Balanced datasets typically lead to better model performance.`;
+                    break;
+                case 'results.png':
+                    if (mAP50 > 0.8) {
+                        interpretation = `The model shows excellent performance with mAP50 of ${mAP50.toFixed(2)}. 
+                                         Loss curves show good convergence.`;
+                    } else if (mAP50 > 0.5) {
+                        interpretation = `The model shows good performance with mAP50 of ${mAP50.toFixed(2)}. 
+                                         Further training might improve results.`;
+                    } else {
+                        interpretation = `The model shows moderate performance with mAP50 of ${mAP50.toFixed(2)}. 
+                                         Consider increasing epochs or adjusting hyperparameters.`;
+                    }
+                    break;
+                case 'confusion_matrix.png':
+                    if (precision > 0.8 && recall > 0.8) {
+                        interpretation = `Excellent class separation with high precision (${precision.toFixed(2)}) 
+                                         and recall (${recall.toFixed(2)}). The model rarely confuses classes.`;
+                    } else if (precision > 0.5 && recall > 0.5) {
+                        interpretation = `Good class separation with precision ${precision.toFixed(2)} and 
+                                         recall ${recall.toFixed(2)}. Some class confusion may be present.`;
+                    } else {
+                        interpretation = `Moderate class separation. The model may be confusing some classes. 
+                                         Consider adding more diverse training examples.`;
+                    }
+                    break;
+                case 'PR_curve.png':
+                    if (precision > 0.8 && recall > 0.8) {
+                        interpretation = `The PR curve shows excellent balance between precision 
+                                         (${precision.toFixed(2)}) and recall (${recall.toFixed(2)}).`;
+                    } else if (precision > recall + 0.2) {
+                        interpretation = `The model favors precision (${precision.toFixed(2)}) over 
+                                         recall (${recall.toFixed(2)}). Good for applications requiring 
+                                         high confidence detections.`;
+                    } else if (recall > precision + 0.2) {
+                        interpretation = `The model favors recall (${recall.toFixed(2)}) over 
+                                         precision (${precision.toFixed(2)}). Good for applications where 
+                                         finding all instances is critical.`;
+                    } else {
+                        interpretation = `The PR curve shows a balanced trade-off between precision 
+                                         (${precision.toFixed(2)}) and recall (${recall.toFixed(2)}).`;
+                    }
+                    break;
+                case 'F1_curve.png':
+                    if (mAP50 > 0.75) {
+                        interpretation = `Strong F1 performance indicating a good balance between precision 
+                                         and recall. Peak F1 score correlates with mAP50 of ${mAP50.toFixed(2)}.`;
+                    } else {
+                        interpretation = `Moderate F1 performance with room for improvement in balancing 
+                                         precision and recall. Consider adjusting confidence thresholds.`;
+                    }
+                    break;
+                case 'P_curve.png':
+                    if (precision > 0.8) {
+                        interpretation = `Excellent precision curve showing high confidence in detected objects 
+                                         (${precision.toFixed(2)}). False positives are minimal.`;
+                    } else if (precision > 0.5) {
+                        interpretation = `Good precision curve (${precision.toFixed(2)}). The model is 
+                                         reasonably confident in its detections.`;
+                    } else {
+                        interpretation = `Moderate precision performance (${precision.toFixed(2)}). 
+                                         The model may produce some false positive detections.`;
+                    }
+                    break;
+                case 'R_curve.png':
+                    if (recall > 0.8) {
+                        interpretation = `Excellent recall curve (${recall.toFixed(2)}) indicating the model 
+                                         finds most objects. Few false negatives.`;
+                    } else if (recall > 0.5) {
+                        interpretation = `Good recall performance (${recall.toFixed(2)}). The model finds 
+                                         most objects but may miss some.`;
+                    } else {
+                        interpretation = `Moderate recall (${recall.toFixed(2)}). The model misses some 
+                                         objects. Consider reducing confidence threshold for detection.`;
+                    }
+                    break;
+                default:
+                    interpretation = `This visualization helps understand model performance. 
+                                     Higher metrics generally indicate better results.`;
+            }
+            
+            // Update the analysis element with the interpretation
+            graphAnalysisElement.innerHTML = interpretation;
         }
         
         function populateConfig(model) {
