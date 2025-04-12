@@ -328,7 +328,8 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
                     else:
                         # Try to find any potential best.pt files
                         for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
-                            if "best.pt" in files:
+                            if "best.pt" in files and not training_status["complete"]:
+                                # Found a trained model that wasn't properly registered
                                 found_path = os.path.join(root, "best.pt")
                                 shutil.copy(found_path, model_save_path)
                                 print(f"Found and copied model from {found_path} to {model_save_path}")
@@ -967,17 +968,32 @@ def api_list_models():
                 onnx_path = model_path.replace('.pt', '.onnx')
                 has_onnx = os.path.exists(onnx_path)
                 
+                # Create web-accessible URL for the model
+                # Static files are served from /static/models/
+                url_path = url_for('static', filename=f'models/{rel_path}')
+                
                 models.append({
                     'name': model_name,
-                    'path': rel_path,
+                    'path': url_path,
                     'full_path': model_path,
+                    'relative_path': rel_path,
                     'type': 'PyTorch',
                     'has_onnx': has_onnx,
-                    'onnx_path': os.path.relpath(onnx_path, app.config['MODELS_FOLDER']) if has_onnx else None,
+                    'onnx_path': url_for('static', filename=f'models/{os.path.relpath(onnx_path, app.config["MODELS_FOLDER"])}') if has_onnx else None,
                     'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S')
                 })
     
     return jsonify(models)
+
+@app.route('/model/<path:model_dir>/weights/<path:model_file>')
+def serve_model_file(model_dir, model_file):
+    """Serve model files from the weights directory"""
+    model_path = os.path.join(app.config['MODELS_FOLDER'], model_dir, "weights", model_file)
+    
+    if os.path.exists(model_path):
+        return send_file(model_path, as_attachment=True)
+    else:
+        return f"Model file not found: {model_path}", 404
 
 if __name__ == '__main__':
     # Crear directorios necesarios si no existen
