@@ -148,6 +148,11 @@ function renderModelDetails(model) {
     const classesContainer = document.getElementById('classesContainer');
     classesContainer.innerHTML = '';
     
+    // Always show debug info during troubleshooting
+    const debugInfo = document.getElementById('debugInfo');
+    const debugData = document.getElementById('debugData');
+    debugInfo.classList.remove('d-none');
+    
     // Log comprehensive information about the model structure
     console.log("Model data structure:", model);
     console.log("Model info availability:", !!model.model_info);
@@ -179,6 +184,26 @@ function renderModelDetails(model) {
             tempClassesData[index] = className;
         });
         classesData = tempClassesData;
+    }
+    
+    // Ultima verificación: usar clases COCO por defecto si no hay clases definidas
+    if (!classesData || Object.keys(classesData).length === 0) {
+        console.log("No se encontraron clases en el modelo. Usando clases COCO por defecto.");
+        classesData = {
+            0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane',
+            5: 'bus', 6: 'train', 7: 'truck', 8: 'boat', 9: 'traffic light',
+            10: 'fire hydrant', 11: 'stop sign', 12: 'parking meter', 13: 'bench', 14: 'bird',
+            15: 'cat', 16: 'dog', 17: 'horse', 18: 'sheep', 19: 'cow',
+            20: 'elephant', 21: 'bear', 22: 'zebra', 23: 'giraffe', 24: 'backpack'
+            // Truncated for brevity in this example
+        };
+        
+        // Add debug information
+        if (debugData) {
+            const currentDebug = debugData.textContent ? JSON.parse(debugData.textContent) : {};
+            currentDebug.using_default_coco = true;
+            debugData.textContent = JSON.stringify(currentDebug, null, 2);
+        }
     }
     
     if (classesData && Object.keys(classesData).length > 0) {
