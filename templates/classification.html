@@ -102,6 +102,34 @@
     .uploaded-image {
         max-height: 300px;
     }
+    .camera-container {
+        width: 100%;
+        margin: 0 auto;
+        text-align: center;
+        position: relative;
+    }
+    .camera-feed {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa;
+    }
+    .camera-controls {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .camera-snapshot {
+        display: none;
+        margin-top: 1rem;
+    }
+    .camera-snapshot img {
+        max-width: 100%;
+        border-radius: 8px;
+        border: 1px solid #0d6efd;
+    }
 </style>
 {% endblock %}
 
@@ -118,6 +146,9 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">Image URL</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button" role="tab">Take Photo</button>
             </li>
         </ul>
         
@@ -150,6 +181,29 @@
                     <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg" title="Enter the URL of an image to classify">
                 </div>
             </div>
+            
+            <!-- Camera Tab -->
+            <div class="tab-pane fade" id="camera" role="tabpanel">
+                <div class="my-4">
+                    <div class="camera-container">
+                        <video id="cameraFeed" class="camera-feed" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <select class="form-select w-auto" id="cameraSelect" aria-label="Selecciona una cámara">
+                                <option value="0">Default Camera</option>
+                            </select>
+                            <button class="btn btn-primary" id="startCameraBtn">
+                                <i class="bi bi-camera-video"></i> Start Camera
+                            </button>
+                            <button class="btn btn-success" id="takePictureBtn" disabled>
+                                <i class="bi bi-camera"></i> Take Picture
+                            </button>
+                        </div>
+                        <div class="camera-snapshot" id="cameraSnapshot">
+                            <img id="capturedImage" class="img-fluid rounded shadow" alt="Captured Image">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Confidence Threshold -->
@@ -158,14 +212,14 @@
             <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
         </div>
         
-        <!-- Classify button -->
-        <div class="d-grid gap-2">
-            <button class="btn btn-primary" id="classifyButton" type="button">
-                <i class="bi bi-search"></i> Classify Image
+        <!-- Process Button -->
+        <div class="d-grid">
+            <button id="classifyButton" class="btn btn-primary btn-lg">
+                <i class="bi bi-tag"></i> Classify Image
             </button>
         </div>
         
-        <!-- Loading spinner -->
+        <!-- Loading Spinner -->
         <div class="loading-spinner" id="loadingSpinner">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -180,16 +234,16 @@
                 <div class="col-md-6">
                     <div class="text-center mb-4">
                         <div class="result-image-container">
-                            <img id="uploadedImageResult" class="img-fluid rounded" alt="Processed image with detected classes">
+                            <img id="uploadedImageResult" class="img-fluid rounded" alt="Classified image">
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="top-prediction">
                         <h4>Top Prediction</h4>
-                        <h2 id="topClass" class="display-6 mb-0"></h2>
+                        <p class="fs-5 mb-0">Class: <span id="topClass" class="fw-bold text-primary">...</span></p>
                     </div>
-
+                    
                     <h5 class="mt-4 mb-3">All Predictions:</h5>
                     <div id="classResults">
                         <!-- Results will be populated here -->
@@ -221,9 +275,19 @@
         const topClass = document.getElementById('topClass');
         const classResults = document.getElementById('classResults');
         
+        // Camera elements
+        const cameraFeed = document.getElementById('cameraFeed');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const takePictureBtn = document.getElementById('takePictureBtn');
+        const cameraSnapshot = document.getElementById('cameraSnapshot');
+        const capturedImage = document.getElementById('capturedImage');
+        
         // Variables
         let currentFile = null;
         let currentTab = 'upload';
+        let stream = null;
+        let capturedImageData = null;
         
         // Event: Browse button clicked
         browseButton.addEventListener('click', () => {
@@ -268,6 +332,103 @@
             handleFileUpload(file);
         }, false);
         
+        // Camera related events
+        startCameraBtn.addEventListener('click', async () => {
+            if (stream) {
+                // Stop camera if already streaming
+                stopCamera();
+                startCameraBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+                takePictureBtn.disabled = true;
+                return;
+            }
+            
+            try {
+                // Enumerate camera devices
+                if (cameraSelect.options.length <= 1) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    if (videoDevices.length > 0) {
+                        cameraSelect.innerHTML = ''; // Clear options
+                        videoDevices.forEach((device, index) => {
+                            const option = document.createElement('option');
+                            option.value = device.deviceId;
+                            option.text = device.label || `Camera ${index + 1}`;
+                            cameraSelect.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Get selected camera
+                const constraints = {
+                    video: {
+                        deviceId: cameraSelect.value !== '0' ? {exact: cameraSelect.value} : undefined,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                // Start camera stream
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                cameraFeed.srcObject = stream;
+                startCameraBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Camera';
+                takePictureBtn.disabled = false;
+                cameraSnapshot.style.display = 'none';
+                capturedImageData = null;
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                alert('Could not access camera: ' + error.message);
+            }
+        });
+        
+        cameraSelect.addEventListener('change', () => {
+            if (stream) {
+                stopCamera();
+                startCameraBtn.click(); // Restart with new camera
+            }
+        });
+        
+        takePictureBtn.addEventListener('click', () => {
+            if (!stream) return;
+            
+            // Create canvas to capture image from video
+            const canvas = document.createElement('canvas');
+            canvas.width = cameraFeed.videoWidth;
+            canvas.height = cameraFeed.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw video frame to canvas
+            ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+            
+            // Get data URL and display captured image
+            capturedImageData = canvas.toDataURL('image/jpeg');
+            capturedImage.src = capturedImageData;
+            cameraSnapshot.style.display = 'block';
+        });
+        
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                cameraFeed.srcObject = null;
+            }
+        }
+        
+        // Function to convert data URL to Blob
+        function dataURLtoBlob(dataURL) {
+            const parts = dataURL.split(';base64,');
+            const contentType = parts[0].split(':')[1];
+            const raw = window.atob(parts[1]);
+            const rawLength = raw.length;
+            const uInt8Array = new Uint8Array(rawLength);
+            
+            for (let i = 0; i < rawLength; ++i) {
+                uInt8Array[i] = raw.charCodeAt(i);
+            }
+            
+            return new Blob([uInt8Array], { type: contentType });
+        }
+        
         // Event: Remove image
         removeImageButton.addEventListener('click', () => {
             uploadedImageContainer.style.display = 'none';
@@ -310,6 +471,11 @@
                 return;
             }
             
+            if (currentTab === 'camera' && !capturedImageData) {
+                alert('Please take a picture first.');
+                return;
+            }
+            
             // Show loading spinner
             loadingSpinner.style.display = 'block';
             resultContainer.style.display = 'none';
@@ -321,8 +487,12 @@
             
             if (currentTab === 'upload') {
                 formData.append('image', currentFile);
-            } else {
+            } else if (currentTab === 'url') {
                 formData.append('url', imageUrlInput.value);
+            } else if (currentTab === 'camera') {
+                // Convert data URL to Blob and append to form
+                const imageBlob = dataURLtoBlob(capturedImageData);
+                formData.append('image', imageBlob, 'camera_capture.jpg');
             }
             
             // Send request to server
@@ -342,8 +512,10 @@
                     // Set the image
                     if (currentTab === 'upload') {
                         uploadedImageResult.src = URL.createObjectURL(currentFile);
-                    } else {
+                    } else if (currentTab === 'url') {
                         uploadedImageResult.src = imageUrlInput.value;
+                    } else if (currentTab === 'camera') {
+                        uploadedImageResult.src = capturedImageData;
                     }
                     
                     // Process classification results
@@ -401,6 +573,11 @@
                 loadingSpinner.style.display = 'none';
                 alert('Error: ' + error.message);
             });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
         });
     });
 </script>
