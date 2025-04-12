@@ -346,6 +346,24 @@
                         <h5 class="card-title">Training Configuration</h5>
                     </div>
                     <div class="card-body">
+                        <div class="alert alert-info mb-3">
+                            <h5><i class="bi bi-info-circle"></i> Configuration Importance</h5>
+                            <p>The training configuration includes all hyperparameters and settings used during model training. Understanding these parameters is crucial for reproducing results and fine-tuning your model's performance.</p>
+                        </div>
+                        <div class="config-explanation mb-3">
+                            <h6>Key Parameters Explained:</h6>
+                            <ul class="list-group">
+                                <li class="list-group-item"><strong>task</strong>: Defines the model's purpose (detection, segmentation, pose, etc.)</li>
+                                <li class="list-group-item"><strong>model</strong>: Base model architecture used for training</li>
+                                <li class="list-group-item"><strong>epochs</strong>: Number of complete passes through the dataset (more epochs generally improve performance)</li>
+                                <li class="list-group-item"><strong>batch</strong>: Number of images processed in each training step (affects memory usage and training speed)</li>
+                                <li class="list-group-item"><strong>imgsz</strong>: Input image resolution (higher resolution improves accuracy but requires more memory)</li>
+                                <li class="list-group-item"><strong>lr0/lrf</strong>: Initial/final learning rates (control how quickly the model adapts during training)</li>
+                                <li class="list-group-item"><strong>patience</strong>: Number of epochs to wait before early stopping if no improvement occurs</li>
+                                <li class="list-group-item"><strong>optimizer</strong>: Algorithm used to update model weights during training</li>
+                                <li class="list-group-item"><strong>mosaic/mixup/fliplr</strong>: Data augmentation techniques that help improve model generalization</li>
+                            </ul>
+                        </div>
                         <pre id="configContent" class="bg-light p-3 rounded"><!-- Config will be populated here --></pre>
                     </div>
                 </div>
