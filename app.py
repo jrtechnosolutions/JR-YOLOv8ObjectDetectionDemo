@@ -835,18 +835,30 @@ def api_training_status():
     """API endpoint to get training status"""
     global training_status
     
-    # If training shows error but we might have completed successfully
+    # Si hay un mensaje, revisa si contiene información sobre completado o error
     if "message" in training_status:
-        # Check if training completed but UI didn't update
-        if "Training complete" in training_status["message"] or training_status["complete"]:
+        # Busca si hay mensajes que indiquen que el entrenamiento terminó
+        indicators_of_completion = [
+            "Training complete", 
+            "Training completed", 
+            "Results saved to", 
+            "Optimizer stripped from",
+            "Training completed successfully"
+        ]
+        
+        if any(indicator in training_status["message"] for indicator in indicators_of_completion) or training_status["complete"]:
             training_status["progress"] = 100
             training_status["complete"] = True
-        # Check for error but training might have completed anyway
+            if "error" in training_status["message"].lower():
+                # Si hay un mensaje de error pero sabemos que terminó, actualiza el mensaje
+                training_status["message"] = "Training completed successfully"
+        
+        # Verifica errores pero el entrenamiento puede haber completado igualmente
         elif "error" in training_status["message"].lower() and not training_status["complete"]:
-            # Look for best.pt files in models directory that might indicate successful training
+            # Busca best.pt en los modelos para confirmar si en realidad se completó
             for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
                 if "best.pt" in files:
-                    # Found a trained model that wasn't properly registered
+                    # Encontró un modelo entrenado
                     model_path = os.path.join(root, "best.pt")
                     training_status["progress"] = 100
                     training_status["message"] = f"Training complete. Model found at {model_path}"
