@@ -298,6 +298,64 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
         try:
             results = model.train(**train_args)
             print(f"Training completed successfully. Results: {results}")
+            
+            # Save the trained model
+            model_save_path = os.path.join(
+                app.config['MODELS_FOLDER'], 
+                f"trained_{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
+            )
+            
+            # Use correct method to save based on YOLO version
+            try:
+                # Try newer version API method first
+                model.export(format="pt", save_dir=os.path.dirname(model_save_path), 
+                             filename=os.path.basename(model_save_path))
+                print(f"Model saved using export() method at {model_save_path}")
+            except (AttributeError, TypeError) as e:
+                # Fallback for older versions
+                try:
+                    model.save(model_save_path)
+                    print(f"Model saved using save() method at {model_save_path}")
+                except Exception as save_err:
+                    print(f"Failed to save model with either method: {str(save_err)}")
+                    # Try to salvage the automatically saved model from the results
+                    best_model_path = os.path.join(app.config['MODELS_FOLDER'], 
+                                          f"{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+                                          "weights", "best.pt")
+                    if os.path.exists(best_model_path):
+                        shutil.copy(best_model_path, model_save_path)
+                        print(f"Copied automatically saved model from {best_model_path} to {model_save_path}")
+                    else:
+                        # Try to find any potential best.pt files
+                        for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
+                            if "best.pt" in files:
+                                found_path = os.path.join(root, "best.pt")
+                                shutil.copy(found_path, model_save_path)
+                                print(f"Found and copied model from {found_path} to {model_save_path}")
+                                break
+                        else:
+                            print(f"Could not find any automatically saved model")
+            
+            # Convert to ONNX only if PT model was saved successfully
+            onnx_path = model_save_path.replace('.pt', '.onnx')
+            if os.path.exists(model_save_path):
+                try:
+                    model.export(format="onnx", save=True)
+                    print(f"Model exported to ONNX at {onnx_path}")
+                except Exception as onnx_err:
+                    print(f"Failed to export to ONNX: {str(onnx_err)}")
+                    onnx_path = None
+            else:
+                print("Skipping ONNX export because PT model was not saved")
+                onnx_path = None
+            
+            # Update status to complete regardless of ONNX export
+            training_status["progress"] = 100
+            training_status["message"] = f"Training complete. Model saved at {model_save_path}"
+            training_status["complete"] = True
+            training_status["model_path"] = model_save_path
+            training_status["onnx_path"] = onnx_path
+            
         except Exception as train_err:
             error_message = f"Training error: {str(train_err)}"
             print(f"ERROR during training: {error_message}")
@@ -305,55 +363,6 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             training_status["complete"] = True
             is_training = False
             return
-        
-        # Save the trained model
-        model_save_path = os.path.join(
-            app.config['MODELS_FOLDER'], 
-            f"trained_{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
-        )
-        
-        # Use correct method to save based on YOLO version
-        try:
-            # Try newer version API method first
-            model.export(format="pt", save_dir=os.path.dirname(model_save_path), 
-                         filename=os.path.basename(model_save_path))
-            print(f"Model saved using export() method at {model_save_path}")
-        except (AttributeError, TypeError) as e:
-            # Fallback for older versions
-            try:
-                model.save(model_save_path)
-                print(f"Model saved using save() method at {model_save_path}")
-            except Exception as save_err:
-                print(f"Failed to save model with either method: {str(save_err)}")
-                # Try to salvage the automatically saved model from the results
-                runs_dir = os.path.join(app.config['MODELS_FOLDER'], 
-                                      f"{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
-                                      "weights", "best.pt")
-                if os.path.exists(runs_dir):
-                    shutil.copy(runs_dir, model_save_path)
-                    print(f"Copied automatically saved model from {runs_dir} to {model_save_path}")
-                else:
-                    print(f"Could not find automatically saved model at {runs_dir}")
-        
-        # Convert to ONNX only if PT model was saved successfully
-        onnx_path = model_save_path.replace('.pt', '.onnx')
-        if os.path.exists(model_save_path):
-            try:
-                model.export(format="onnx", save=True)
-                print(f"Model exported to ONNX at {onnx_path}")
-            except Exception as onnx_err:
-                print(f"Failed to export to ONNX: {str(onnx_err)}")
-                onnx_path = None
-        else:
-            print("Skipping ONNX export because PT model was not saved")
-            onnx_path = None
-        
-        # Update status
-        training_status["progress"] = 100
-        training_status["message"] = f"Training complete. Model saved at {model_save_path}"
-        training_status["complete"] = True
-        training_status["model_path"] = model_save_path
-        training_status["onnx_path"] = onnx_path
         
     except Exception as e:
         error_message = f"Training error: {str(e)}"
@@ -816,6 +825,20 @@ def api_start_training():
 def api_training_status():
     """API endpoint to get training status"""
     global training_status
+    
+    if "message" in training_status and "error" in training_status["message"].lower() and not training_status["complete"]:
+        # Handle case where UI shows error but training might have completed
+        # Look for best.pt files in models directory that might indicate successful training
+        for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
+            if "best.pt" in files and not training_status["complete"]:
+                # Found a trained model that wasn't properly registered
+                model_path = os.path.join(root, "best.pt")
+                training_status["progress"] = 100
+                training_status["message"] = f"Training complete. Model found at {model_path}"
+                training_status["complete"] = True
+                training_status["model_path"] = model_path
+                break
+    
     return jsonify(training_status)
 
 @app.route('/api/start-stream', methods=['POST'])
@@ -925,19 +948,36 @@ def models(filename):
 
 @app.route('/api/list-models')
 def api_list_models():
-    """API endpoint to list available models"""
-    models_list = []
+    """API endpoint to list available trained models"""
+    models = []
     
-    for file in os.listdir(app.config['MODELS_FOLDER']):
-        if file.endswith('.pt') or file.endswith('.onnx'):
-            models_list.append({
-                'name': file,
-                'path': url_for('models', filename=file),
-                'size': os.path.getsize(os.path.join(app.config['MODELS_FOLDER'], file)),
-                'date': os.path.getmtime(os.path.join(app.config['MODELS_FOLDER'], file))
-            })
+    # Ensure directory exists
+    os.makedirs(app.config['MODELS_FOLDER'], exist_ok=True)
     
-    return jsonify(models_list)
+    # List all .pt and .onnx files in the models directory and subdirectories
+    for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
+        for file in files:
+            if file.endswith('.pt') and not file.startswith(('yolov8n', 'yolov8s', 'yolov8m', 'yolov8l', 'yolov8x')):
+                # Skip base models, only include trained models
+                model_path = os.path.join(root, file)
+                rel_path = os.path.relpath(model_path, app.config['MODELS_FOLDER'])
+                model_name = os.path.splitext(os.path.basename(file))[0]
+                
+                # Check if there's a corresponding ONNX model
+                onnx_path = model_path.replace('.pt', '.onnx')
+                has_onnx = os.path.exists(onnx_path)
+                
+                models.append({
+                    'name': model_name,
+                    'path': rel_path,
+                    'full_path': model_path,
+                    'type': 'PyTorch',
+                    'has_onnx': has_onnx,
+                    'onnx_path': os.path.relpath(onnx_path, app.config['MODELS_FOLDER']) if has_onnx else None,
+                    'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S')
+                })
+    
+    return jsonify(models)
 
 if __name__ == '__main__':
     # Crear directorios necesarios si no existen
