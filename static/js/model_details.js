@@ -127,16 +127,29 @@ function renderModelDetails(model) {
     const classesContainer = document.getElementById('classesContainer');
     classesContainer.innerHTML = '';
     
-    if (model.model_info.classes) {
+    if (model.model_info && model.model_info.classes) {
         const classes = model.model_info.classes;
+        
+        // Mostrar mensaje de introducción con el número de clases
+        const classCount = Object.keys(classes).length;
+        const introDiv = document.createElement('div');
+        introDiv.className = 'col-12 mb-3';
+        introDiv.innerHTML = `
+            <div class="alert alert-info">
+                <p>This model has been trained to detect ${classCount} ${classCount === 1 ? 'class' : 'classes'} of objects:</p>
+            </div>
+        `;
+        classesContainer.appendChild(introDiv);
+        
+        // Mostrar cada clase con su ID y nombre
         Object.entries(classes).forEach(([classId, className]) => {
             const classCol = document.createElement('div');
             classCol.className = 'col-lg-3 col-md-4 col-sm-6 mb-3';
             classCol.innerHTML = `
                 <div class="card h-100">
                     <div class="card-body text-center">
-                        <span class="badge bg-dark mb-2">${className}</span>
-                        <p class="card-text small text-muted mb-0">Class ID: ${classId}</p>
+                        <h6 class="card-title mb-2">${className}</h6>
+                        <span class="badge bg-dark mb-2">Class ID: ${classId}</span>
                     </div>
                 </div>
             `;
