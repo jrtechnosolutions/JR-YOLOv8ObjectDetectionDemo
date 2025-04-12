@@ -481,8 +481,14 @@ def video_processing():
 # Unified Video Analysis page (combines streaming and video processing)
 @app.route('/video-stream')
 def video_stream():
-    # Render the combined video stream and processing page
-    return render_template('video_stream.html')
+    # Detect if we're running in Hugging Face
+    is_huggingface = os.environ.get('SPACE_ID') is not None or 'huggingface.co' in request.host or 'spaces' in request.host
+    
+    # Render the appropriate template based on environment
+    if is_huggingface:
+        return render_template('video_stream_hf.html')
+    else:
+        return render_template('video_stream.html')
 
 # Routes
 @app.route('/')
