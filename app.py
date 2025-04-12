@@ -291,11 +291,42 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             app.config['MODELS_FOLDER'], 
             f"trained_{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pt"
         )
-        model.save(model_save_path)
         
-        # Convert to ONNX
+        # Use correct method to save based on YOLO version
+        try:
+            # Try newer version API method first
+            model.export(format="pt", save_dir=os.path.dirname(model_save_path), 
+                         filename=os.path.basename(model_save_path))
+            print(f"Model saved using export() method at {model_save_path}")
+        except (AttributeError, TypeError) as e:
+            # Fallback for older versions
+            try:
+                model.save(model_save_path)
+                print(f"Model saved using save() method at {model_save_path}")
+            except Exception as save_err:
+                print(f"Failed to save model with either method: {str(save_err)}")
+                # Try to salvage the automatically saved model from the results
+                runs_dir = os.path.join(app.config['MODELS_FOLDER'], 
+                                      f"{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+                                      "weights", "best.pt")
+                if os.path.exists(runs_dir):
+                    shutil.copy(runs_dir, model_save_path)
+                    print(f"Copied automatically saved model from {runs_dir} to {model_save_path}")
+                else:
+                    print(f"Could not find automatically saved model at {runs_dir}")
+        
+        # Convert to ONNX only if PT model was saved successfully
         onnx_path = model_save_path.replace('.pt', '.onnx')
-        model.export(format="onnx", save=True)
+        if os.path.exists(model_save_path):
+            try:
+                model.export(format="onnx", save=True)
+                print(f"Model exported to ONNX at {onnx_path}")
+            except Exception as onnx_err:
+                print(f"Failed to export to ONNX: {str(onnx_err)}")
+                onnx_path = None
+        else:
+            print("Skipping ONNX export because PT model was not saved")
+            onnx_path = None
         
         # Update status
         training_status["progress"] = 100
