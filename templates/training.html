@@ -509,24 +509,22 @@
                         clearInterval(trainingInterval);
                         
                         // Update UI for completed training
-                        if (data.model_path) {
-                            completedActions.style.display = 'block';
-                            downloadModelButton.href = `/models/${data.model_path.split('/').pop()}`;
-                            
-                            if (data.onnx_path) {
-                                downloadOnnxButton.href = `/models/${data.onnx_path.split('/').pop()}`;
-                                downloadOnnxButton.style.display = 'block';
-                            } else {
-                                downloadOnnxButton.style.display = 'none';
-                            }
-                            
-                            // Make the progress bar green
-                            progressBar.classList.remove('progress-bar-animated');
-                            progressBar.classList.add('bg-success');
-                            
-                            // Reload models list
+                        completedActions.style.display = 'block'; // Siempre mostrar las acciones completadas
+                        
+                        // Manually trigger loading of models
+                        setTimeout(() => {
                             loadModels();
-                        }
+                            // Forzar la aparición del botón de detalles
+                            if (showModelDetailsButton) {
+                                showModelDetailsButton.style.display = 'block'; 
+                                // Automáticamente mostrar los detalles del modelo
+                                showModelDetails();
+                            }
+                        }, 2000); // Esperar 2 segundos para que se carguen los modelos
+                        
+                        // Make the progress bar green
+                        progressBar.classList.remove('progress-bar-animated');
+                        progressBar.classList.add('bg-success');
                     }
                 })
                 .catch(error => {
