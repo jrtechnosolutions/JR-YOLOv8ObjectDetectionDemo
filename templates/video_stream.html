@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Video Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+    .video-container {
+        position: relative;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .video-container img {
+        width: 100%;
+        display: block;
+    }
+    
+    .controls {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .control-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+    
+    .stream-status {
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+    
+    .status-inactive {
+        color: #dc3545;
+    }
+    
+    .status-active {
+        color: #198754;
+    }
+    
+    .confidence-slider {
+        width: 100%;
+    }
+    
+    .loading-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: white;
+        background-color: rgba(0,0,0,0.7);
+        padding: 1rem;
+        border-radius: 8px;
+        display: none;
+    }
+    
+    .capture-button {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        background-color: rgba(255,255,255,0.7);
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .capture-button:hover {
+        background-color: rgba(255,255,255,0.9);
+    }
+    
+    .capture-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+        display: none;
+    }
+    
+    .captured-image-container {
+        display: none;
+        margin-top: 2rem;
+    }
+    
+    .nav-tabs .nav-link {
+        color: #495057;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem 0.5rem 0 0;
+        font-weight: 500;
+        padding: 0.75rem 1.25rem;
+        margin-right: 4px;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #007bff;
+        background-color: #ffffff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 600;
+    }
+    
+    .tab-content {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 0.5rem 0.5rem;
+        padding: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <h1 class="mb-4">Video Analysis</h1>
+        <p class="lead">Process video streams or upload video files using YOLO models for detection, segmentation, and pose estimation.</p>
+        
+        <!-- Hugging Face Spaces notification -->
+        <div id="huggingFaceNotification" class="alert alert-info d-none" role="alert">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="bi bi-info-circle-fill fs-4 me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                    <h5 class="alert-heading">Camera access not available in Hugging Face Spaces</h5>
+                    <p class="mb-1">Live camera streaming is not available in cloud-hosted environments like Hugging Face Spaces due to security restrictions.</p>
+                    <hr>
+                    <p class="mb-0">Please try our video upload feature below to analyze pre-recorded videos with YOLO models.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="videoTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="live-stream-tab" data-bs-toggle="tab" data-bs-target="#live-stream" type="button" role="tab" aria-controls="live-stream" aria-selected="true">
+                    <i class="bi bi-camera-video"></i> Live Stream
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="video-processing-tab" data-bs-toggle="tab" data-bs-target="#video-processing" type="button" role="tab" aria-controls="video-processing" aria-selected="false">
+                    <i class="bi bi-file-earmark-play"></i> Video Upload
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="videoTabsContent">
+            <!-- Live Stream Tab -->
+            <div class="tab-pane fade show active" id="live-stream" role="tabpanel" aria-labelledby="live-stream-tab">
+                <!-- Stream Status -->
+                <div class="stream-status" id="streamStatus">
+                    <span class="status-inactive">
+                        <i class="bi bi-camera-video-off"></i> Stream Inactive
+                    </span>
+                </div>
+                
+                <!-- Video Container -->
+                <div class="video-container">
+                    <div id="loadingIndicator" class="loading-indicator">
+                        <div class="spinner-border text-light mb-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mb-0">Connecting to stream...</p>
+                    </div>
+                    <img id="videoFeed" src="{{ url_for('static', filename='images/placeholder-video.jpg') }}" alt="Video Feed">
+                    <button class="capture-button" id="captureButton" title="Capture Frame" disabled>
+                        <i class="bi bi-camera"></i>
+                    </button>
+                </div>
+                
+                <!-- Capture Alert -->
+                <div class="alert alert-success alert-dismissible fade capture-alert" id="captureAlert" role="alert">
+                    <strong>Success!</strong> Frame captured successfully.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                
+                <!-- Controls -->
+                <div class="controls">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="modelSelect" class="form-label">Model Type</label>
+                            <select class="form-select" id="modelSelect">
+                                <option value="detection">Object Detection</option>
+                                <option value="segmentation">Segmentation</option>
+                                <option value="pose">Pose Estimation</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label for="confidenceSlider" class="form-label">Confidence Threshold: <span id="confidenceValue">0.25</span></label>
+                            <input type="range" class="form-range confidence-slider" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.25">
+                        </div>
+                    </div>
+                    
+                    <div class="control-buttons">
+                        <button class="btn btn-primary" id="startButton">
+                            <i class="bi bi-play-fill"></i> Start Stream
+                        </button>
+                        <button class="btn btn-danger" id="stopButton" disabled>
+                            <i class="bi bi-stop-fill"></i> Stop Stream
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Captured Image -->
+                <div class="captured-image-container" id="capturedImageContainer">
+                    <h3>Captured Frame</h3>
+                    <div class="row">
+                        <div class="col-md-8 mx-auto">
+                            <div class="card">
+                                <img id="capturedImage" src="#" class="card-img-top" alt="Captured Frame">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <button class="btn btn-danger" id="dismissCaptureBtn">
+                                            <i class="bi bi-x-circle"></i> Dismiss
+                                        </button>
+                                        <a href="#" id="downloadLinkStream" class="btn btn-success" download="captured-frame.jpg">
+                                            <i class="bi bi-download"></i> Download Image
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Video Processing Tab -->
+            <div class="tab-pane fade" id="video-processing" role="tabpanel" aria-labelledby="video-processing-tab">
+                <div id="alertContainer"></div>
+                
+                <form id="videoUploadForm" class="mb-4">
+                    <div class="mb-3">
+                        <label for="videoFile" class="form-label">Upload Video</label>
+                        <input class="form-control" type="file" id="videoFile" name="video" accept="video/mp4,video/avi">
+                        <div class="form-text">Supported formats: MP4, AVI (Max 100MB)</div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="videoModelType" class="form-label">Model Type</label>
+                            <select class="form-select" id="videoModelType" name="model_type">
+                                <option value="detection" selected>Object Detection</option>
+                                <option value="segmentation">Segmentation</option>
+                                <option value="pose">Pose Estimation</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="videoConfidenceRange" class="form-label">Confidence Threshold: <span id="videoConfidenceValue">0.25</span></label>
+                            <input type="range" class="form-range" min="0.05" max="0.95" step="0.05" value="0.25" id="videoConfidenceRange" name="confidence">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="maxFrames" class="form-label">Max Frames to Process</label>
+                        <select class="form-select" id="maxFrames" name="max_frames">
+                            <option value="all">All Frames (Best Quality)</option>
+                            <option value="300" selected>300 Frames (Recommended)</option>
+                            <option value="200">200 Frames (Faster)</option>
+                            <option value="100">100 Frames (Fastest)</option>
+                        </select>
+                        <div class="form-text">Processing fewer frames results in faster completion but lower temporal resolution.</div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-camera-video"></i> Process Video
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="processingSpinner" class="text-center my-4 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Processing video...</span>
+                    </div>
+                    <p class="mt-2">Processing your video. This may take several minutes depending on the file size...</p>
+                </div>
+                
+                <div id="resultContainer" class="d-none">
+                    <h3 class="mb-3">Processed Video</h3>
+                    <div class="ratio ratio-16x9 mb-3">
+                        <video id="resultVideo" controls>
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a id="downloadLinkVideo" href="#" class="btn btn-success" download>
+                            <i class="bi bi-download"></i> Download Processed Video
+                        </a>
+                        <button id="newVideoBtn" class="btn btn-secondary">Process Another Video</button>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Video Processing Tips</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul>
+                            <li>For best results, use videos with good lighting and minimal camera shake</li>
+                            <li>Larger videos (higher resolution/longer duration) will take more time to process</li>
+                            <li>The processing time depends on the model type and confidence threshold</li>
+                            <li>For large videos, consider reducing the number of frames to process</li>
+                            <li>Results are saved on the server and can be downloaded after processing</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Check if running in Hugging Face Spaces
+        if (window.location.hostname.includes('huggingface.co') || 
+            window.location.hostname.includes('spaces')) {
+            $('#huggingFaceNotification').removeClass('d-none');
+            // Auto-switch to video upload tab since live streaming won't work
+            setTimeout(() => {
+                document.getElementById('video-processing-tab').click();
+            }, 500);
+        }
+        
+        // DOM elements for Live Stream
+        const videoFeed = document.getElementById('videoFeed');
+        const streamStatus = document.getElementById('streamStatus');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const modelSelect = document.getElementById('modelSelect');
+        const confidenceSlider = document.getElementById('confidenceSlider');
+        const confidenceValue = document.getElementById('confidenceValue');
+        const captureButton = document.getElementById('captureButton');
+        const captureAlert = document.getElementById('captureAlert');
+        const capturedImageContainer = document.getElementById('capturedImageContainer');
+        const capturedImage = document.getElementById('capturedImage');
+        const downloadLinkStream = document.getElementById('downloadLinkStream');
+        const dismissCaptureBtn = document.getElementById('dismissCaptureBtn');
+        
+        // Variables for Live Stream
+        let streamActive = false;
+        
+        // Event: Start stream button clicked
+        startButton.addEventListener('click', () => {
+            if (streamActive) return;
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('model_type', modelSelect.value);
+            formData.append('confidence', confidenceSlider.value);
+            
+            // Send AJAX request to start stream
+            fetch('/api/start-stream', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Start streaming
+                    videoFeed.src = `/video-feed?model_type=${modelSelect.value}&confidence=${confidenceSlider.value}`;
+                    streamActive = true;
+                    updateStreamStatus(true);
+                    
+                    // Hide loading after a short delay to ensure the stream has started
+                    setTimeout(() => {
+                        loadingIndicator.style.display = 'none';
+                    }, 1000);
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to start stream'));
+                    loadingIndicator.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                loadingIndicator.style.display = 'none';
+            });
+        });
+        
+        // Event: Stop stream button clicked
+        stopButton.addEventListener('click', () => {
+            if (!streamActive) return;
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // Send AJAX request to stop stream
+            fetch('/api/stop-stream', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Reset the video feed and update UI
+                    videoFeed.src = "{{ url_for('static', filename='images/placeholder-video.jpg') }}";
+                    streamActive = false;
+                    updateStreamStatus(false);
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to stop stream'));
+                }
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                loadingIndicator.style.display = 'none';
+            });
+        });
+        
+        // Event: Model/Camera/Confidence changed
+        modelSelect.addEventListener('change', updateStreamParameters);
+        confidenceSlider.addEventListener('input', () => {
+            confidenceValue.textContent = confidenceSlider.value;
+            updateStreamParameters();
+        });
+        
+        // Event: Capture button clicked
+        captureButton.addEventListener('click', () => {
+            if (!streamActive) return;
+            
+            // Send request to capture frame
+            fetch('/api/capture-frame', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Show captured image
+                    capturedImageContainer.style.display = 'block';
+                    capturedImage.src = data.frame_url;
+                    downloadLinkStream.href = data.frame_url;
+                    
+                    // Show capture alert
+                    captureAlert.style.display = 'block';
+                    captureAlert.classList.add('show');
+                    
+                    // Auto hide alert after 3 seconds
+                    setTimeout(() => {
+                        captureAlert.classList.remove('show');
+                        setTimeout(() => {
+                            captureAlert.style.display = 'none';
+                        }, 300);
+                    }, 3000);
+                    
+                    // Scroll to captured image
+                    capturedImageContainer.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    // Show error
+                    alert('Error: ' + (data.message || 'Failed to capture frame'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        });
+        
+        // Event: Dismiss capture button clicked
+        dismissCaptureBtn.addEventListener('click', () => {
+            capturedImageContainer.style.display = 'none';
+        });
+        
+        // Function: Update stream parameters when they change
+        function updateStreamParameters() {
+            if (streamActive) {
+                videoFeed.src = `/video-feed?model_type=${modelSelect.value}&confidence=${confidenceSlider.value}`;
+            }
+        }
+        
+        // Function: Update stream status UI
+        function updateStreamStatus(active) {
+            if (active) {
+                streamStatus.innerHTML = `
+                    <span class="status-active">
+                        <i class="bi bi-camera-video"></i> Stream Active
+                    </span>
+                `;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                captureButton.disabled = false;
+            } else {
+                streamStatus.innerHTML = `
+                    <span class="status-inactive">
+                        <i class="bi bi-camera-video-off"></i> Stream Inactive
+                    </span>
+                `;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                captureButton.disabled = true;
+            }
+        }
+        
+        // DOM elements for Video Processing
+        const videoForm = document.getElementById('videoUploadForm');
+        const videoConfidenceRange = document.getElementById('videoConfidenceRange');
+        const videoConfidenceValue = document.getElementById('videoConfidenceValue');
+        const processingSpinner = document.getElementById('processingSpinner');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultVideo = document.getElementById('resultVideo');
+        const downloadLinkVideo = document.getElementById('downloadLinkVideo');
+        const newVideoBtn = document.getElementById('newVideoBtn');
+        
+        // Update confidence value display for Video Processing
+        videoConfidenceRange.addEventListener('input', function() {
+            videoConfidenceValue.textContent = this.value;
+        });
+        
+        // Handle form submission for Video Processing
+        videoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(videoForm);
+            const videoFile = document.getElementById('videoFile').files[0];
+            
+            // Validate video file
+            if (!videoFile) {
+                showAlert('Please select a video file to process', 'warning');
+                return;
+            }
+            
+            // Check file size (100MB max)
+            if (videoFile.size > 100 * 1024 * 1024) {
+                showAlert('Video file is too large. Maximum size is 100MB', 'warning');
+                return;
+            }
+            
+            // Show processing spinner
+            processingSpinner.classList.remove('d-none');
+            videoForm.classList.add('d-none');
+            
+            // Submit the form via AJAX
+            fetch('/api/process-video', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Display the processed video
+                    resultVideo.src = data.video_url;
+                    downloadLinkVideo.href = data.video_url;
+                    
+                    // Hide spinner, show result
+                    processingSpinner.classList.add('d-none');
+                    resultContainer.classList.remove('d-none');
+                    
+                    showAlert('Video processed successfully: ' + data.message, 'success');
+                } else {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+            })
+            .catch(error => {
+                processingSpinner.classList.add('d-none');
+                videoForm.classList.remove('d-none');
+                showAlert('Error: ' + error.message, 'danger');
+                console.error('Error:', error);
+            });
+        });
+        
+        // New video button
+        newVideoBtn.addEventListener('click', function() {
+            resultContainer.classList.add('d-none');
+            videoForm.classList.remove('d-none');
+            videoForm.reset();
+            videoConfidenceValue.textContent = '0.25';
+        });
+        
+        // Function to show alerts
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+        }
+    });
+</script>
+{% endblock %}

@@ -37,10 +37,7 @@
                         <a class="nav-link {% if request.path == '/classification' %}active{% endif %}" href="/classification">Classification</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/streaming' %}active{% endif %}" href="/streaming">Live Stream</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/video-processing' %}active{% endif %}" href="/video-processing">Video Processing</a>
+                        <a class="nav-link {% if request.path == '/video-stream' %}active{% endif %}" href="/video-stream">Video Analysis</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/training' %}active{% endif %}" href="/training">Training</a>
@@ -75,7 +72,7 @@
                 <div class="col-md-3">
                     <h5>Advanced</h5>
                     <ul class="list-unstyled">
-                        <li><a href="/streaming" class="text-light">Live Stream</a></li>
+                        <li><a href="/video-stream" class="text-light">Video Analysis</a></li>
                         <li><a href="/training" class="text-light">Model Training</a></li>
                     </ul>
                 </div>

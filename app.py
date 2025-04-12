@@ -466,11 +466,23 @@ def api_process_video():
         'video_url': url_for('results', filename=result_filename)
     })
 
-# Video processing page
+# Video streaming page
+@app.route('/streaming')
+def streaming():
+    # Redirect to the new unified video stream page
+    return redirect(url_for('video_stream'))
+
+# Video processing page - alternative to streaming for Hugging Face Spaces
 @app.route('/video-processing')
 def video_processing():
-    """Video processing page - alternative to streaming for Hugging Face Spaces"""
-    return render_template('video_processing.html')
+    # Redirect to the new unified video stream page
+    return redirect(url_for('video_stream'))
+
+# Unified Video Analysis page (combines streaming and video processing)
+@app.route('/video-stream')
+def video_stream():
+    # Render the combined video stream and processing page
+    return render_template('video_stream.html')
 
 # Routes
 @app.route('/')
@@ -502,11 +514,6 @@ def classification():
 def training():
     """Model training page"""
     return render_template('training.html')
-
-@app.route('/streaming')
-def streaming():
-    """Video streaming page"""
-    return render_template('streaming.html')
 
 @app.route('/api/process-image', methods=['POST'])
 def api_process_image():
