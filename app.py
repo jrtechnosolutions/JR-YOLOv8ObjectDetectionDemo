@@ -67,15 +67,25 @@ def load_model(model_type):
     
     model_path = os.path.join(app.config['MODELS_FOLDER'], models[model_type])
     
-    # Download model if it doesn't exist - ya no usamos model.save()
-    if not os.path.exists(model_path):
-        # Descargamos directamente del repo de Ultralytics
+    try:
+        # First, try to load locally
+        if os.path.exists(model_path):
+            model = YOLO(model_path)
+        else:
+            # If not found locally, load from Ultralytics but with a message
+            print(f"Model {models[model_type]} not found locally, loading from Ultralytics...")
+            model = YOLO(models[model_type])
+            # If we're in a production environment (like HF Spaces)
+            # don't try to save the model to avoid filesystem operations
+            if os.environ.get('HF_SPACE', '') != 'true':
+                # Only try to save in development environments
+                if os.path.exists(models[model_type]):
+                    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+                    shutil.copy(models[model_type], model_path)
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        # Fallback to direct loading without saving
         model = YOLO(models[model_type])
-        # Copiamos el archivo descargado a nuestra carpeta de modelos
-        if os.path.exists(models[model_type]):
-            shutil.copy(models[model_type], model_path)
-    else:
-        model = YOLO(model_path)
     
     return model
 
@@ -1102,6 +1112,11 @@ if __name__ == '__main__':
     os.makedirs('static/uploads', exist_ok=True)
     os.makedirs('static/results', exist_ok=True)
     os.makedirs('static/models', exist_ok=True)
+    os.makedirs('static/datasets', exist_ok=True)
+    
+    # Detectar si estamos en HuggingFace Spaces
+    if os.environ.get('HF_SPACE', '') == 'true':
+        print("Running in HuggingFace Spaces environment")
     
     # Iniciar la aplicación en el puerto 7860 para compatibilidad con Hugging Face Spaces
     app.run(host='0.0.0.0', port=7860)
