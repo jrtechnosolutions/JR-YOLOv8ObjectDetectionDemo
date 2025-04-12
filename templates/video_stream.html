@@ -132,8 +132,12 @@
         <h1 class="mb-4">Video Analysis</h1>
         <p class="lead">Process video streams or upload video files using YOLO models for detection, segmentation, and pose estimation.</p>
         
-        <!-- Hugging Face Spaces notification - Updated to inline alert instead of popup -->
-        <div id="huggingFaceNotification" class="alert alert-warning mb-4 huggingface-notification">
+        <!-- Determinar si estamos en Hugging Face -->
+        {% set huggingface = True if "huggingface.co" in request.host or "spaces" in request.host else False %}
+        
+        {% if huggingface %}
+        <!-- Mensaje de alerta integrado para Hugging Face -->
+        <div class="alert alert-warning mb-4">
             <div class="d-flex align-items-center">
                 <div class="flex-shrink-0">
                     <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
@@ -141,22 +145,27 @@
                 <div class="flex-grow-1 ms-2">
                     <h5 class="alert-heading">Camera streaming not available</h5>
                     <p class="mb-1">Live camera streaming is not available in cloud-hosted environments like Hugging Face Spaces due to security restrictions.</p>
-                    <button class="btn btn-primary mt-2" id="switchToUploadTab">
-                        <i class="bi bi-file-earmark-play me-1"></i> Switch to Video Upload
-                    </button>
+                    <p class="mb-0">Please use the Video Upload feature below to analyze pre-recorded videos.</p>
                 </div>
             </div>
         </div>
+        {% endif %}
         
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-3" id="videoTabs" role="tablist">
+            {% if not huggingface %}
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="live-stream-tab" data-bs-toggle="tab" data-bs-target="#live-stream" type="button" role="tab" aria-controls="live-stream" aria-selected="true">
                     <i class="bi bi-camera-video"></i> Live Stream
                 </button>
             </li>
+            {% endif %}
             <li class="nav-item" role="presentation">
+                {% if huggingface %}
+                <button class="nav-link active" id="video-processing-tab" data-bs-toggle="tab" data-bs-target="#video-processing" type="button" role="tab" aria-controls="video-processing" aria-selected="true">
+                {% else %}
                 <button class="nav-link" id="video-processing-tab" data-bs-toggle="tab" data-bs-target="#video-processing" type="button" role="tab" aria-controls="video-processing" aria-selected="false">
+                {% endif %}
                     <i class="bi bi-file-earmark-play"></i> Video Upload
                 </button>
             </li>
@@ -164,6 +173,7 @@
         
         <div class="tab-content" id="videoTabsContent">
             <!-- Live Stream Tab -->
+            {% if not huggingface %}
             <div class="tab-pane fade show active" id="live-stream" role="tabpanel" aria-labelledby="live-stream-tab">
                 <!-- Stream Status -->
                 <div class="stream-status" id="streamStatus">
@@ -241,9 +251,10 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
             
             <!-- Video Processing Tab -->
-            <div class="tab-pane fade" id="video-processing" role="tabpanel" aria-labelledby="video-processing-tab">
+            <div class="tab-pane fade {% if huggingface %}show active{% endif %}" id="video-processing" role="tabpanel" aria-labelledby="video-processing-tab">
                 <div id="alertContainer"></div>
                 
                 <form id="videoUploadForm" class="mb-4">
@@ -331,22 +342,22 @@
 {% block extra_js %}
 <script>
     $(document).ready(function() {
-        // Check if running in Hugging Face Spaces
-        if (window.location.hostname.includes('huggingface.co') || 
-            window.location.hostname.includes('spaces')) {
-            $('#huggingFaceNotification').show();
-            
-            // Button to switch to video upload tab
-            $('#switchToUploadTab').click(function() {
-                document.getElementById('video-processing-tab').click();
-            });
-            
-            // Disable stream controls
-            $('#startButton').prop('disabled', true);
-            $('#modelSelect').prop('disabled', true);
-            $('#confidenceSlider').prop('disabled', true);
-        }
+        // DOM elements for Video Processing
+        const videoForm = document.getElementById('videoUploadForm');
+        const videoConfidenceRange = document.getElementById('videoConfidenceRange');
+        const videoConfidenceValue = document.getElementById('videoConfidenceValue');
+        const processingSpinner = document.getElementById('processingSpinner');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultVideo = document.getElementById('resultVideo');
+        const downloadLinkVideo = document.getElementById('downloadLinkVideo');
+        const newVideoBtn = document.getElementById('newVideoBtn');
         
+        // Update confidence value display for Video Processing
+        videoConfidenceRange.addEventListener('input', function() {
+            videoConfidenceValue.textContent = this.value;
+        });
+        
+        {% if not huggingface %}
         // DOM elements for Live Stream
         const videoFeed = document.getElementById('videoFeed');
         const streamStatus = document.getElementById('streamStatus');
@@ -520,21 +531,7 @@
                 captureButton.disabled = true;
             }
         }
-        
-        // DOM elements for Video Processing
-        const videoForm = document.getElementById('videoUploadForm');
-        const videoConfidenceRange = document.getElementById('videoConfidenceRange');
-        const videoConfidenceValue = document.getElementById('videoConfidenceValue');
-        const processingSpinner = document.getElementById('processingSpinner');
-        const resultContainer = document.getElementById('resultContainer');
-        const resultVideo = document.getElementById('resultVideo');
-        const downloadLinkVideo = document.getElementById('downloadLinkVideo');
-        const newVideoBtn = document.getElementById('newVideoBtn');
-        
-        // Update confidence value display for Video Processing
-        videoConfidenceRange.addEventListener('input', function() {
-            videoConfidenceValue.textContent = this.value;
-        });
+        {% endif %}
         
         // Handle form submission for Video Processing
         videoForm.addEventListener('submit', function(e) {
