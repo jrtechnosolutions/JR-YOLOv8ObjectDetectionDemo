@@ -88,6 +88,13 @@
     .training-artifacts-container {
         margin-top: 1.5rem;
     }
+    
+    /* Tooltip styles */
+    .custom-tooltip {
+        --bs-tooltip-bg: rgba(0, 0, 0, 0.8);
+        --bs-tooltip-color: #fff;
+        --bs-tooltip-max-width: 300px;
+    }
 </style>
 {% endblock %}
 
@@ -302,6 +309,10 @@
             
             <!-- Metrics Tab -->
             <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
+                <div class="alert alert-info mb-3">
+                    <h5><i class="bi bi-info-circle"></i> Interpretación de Métricas</h5>
+                    <p>Las métricas de detección de objetos evalúan la capacidad del modelo para identificar y localizar objetos correctamente. Valores más altos (cercanos a 1.0) indican mejor rendimiento.</p>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-striped table-sm metrics-table">
                         <thead>
@@ -319,6 +330,10 @@
             
             <!-- Visualizations Tab -->
             <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
+                <div class="alert alert-info mb-3">
+                    <h5><i class="bi bi-info-circle"></i> Interpretación de Gráficos</h5>
+                    <p>Los gráficos visualizan el rendimiento del modelo durante el entrenamiento. Haz clic en cualquier imagen para verla ampliada. Las curvas que muestran tendencia ascendente generalmente indican mejora del modelo.</p>
+                </div>
                 <div class="row row-cols-1 row-cols-md-2 g-4" id="visualizationsGallery">
                     <!-- Visualizations will be populated here -->
                 </div>
@@ -576,11 +591,11 @@
             
             // Basic model info
             const modelInfo = [
-                { label: 'Model Name', value: model.name },
-                { label: 'Created', value: model.created },
-                { label: 'Model Type', value: model.type },
-                { label: 'Model Size', value: formatFileSize(model.model_info.model_size) },
-                { label: 'ONNX Available', value: model.has_onnx ? 'Yes' : 'No' }
+                { label: 'Model Name', value: model.name, tooltip: 'Nombre único del modelo, generalmente incluye la fecha/hora de entrenamiento' },
+                { label: 'Created', value: model.created, tooltip: 'Fecha y hora cuando se completó el entrenamiento del modelo' },
+                { label: 'Model Type', value: model.type, tooltip: 'Formato del archivo del modelo (PyTorch es el formato nativo de YOLO)' },
+                { label: 'Model Size', value: formatFileSize(model.model_info.model_size), tooltip: 'Tamaño del archivo del modelo entrenado en disco' },
+                { label: 'ONNX Available', value: model.has_onnx ? 'Yes' : 'No', tooltip: 'ONNX es un formato interoperable para modelos de ML que permite usarlo en diferentes plataformas' }
             ];
             
             // Add class information if available
@@ -588,7 +603,7 @@
                 const classes = typeof model.model_info.classes === 'object' 
                     ? Object.values(model.model_info.classes).join(', ') 
                     : model.model_info.classes;
-                modelInfo.push({ label: 'Classes', value: classes });
+                modelInfo.push({ label: 'Classes', value: classes, tooltip: 'Categorías de objetos que el modelo ha sido entrenado para detectar' });
             }
             
             // Populate model info list
@@ -596,7 +611,7 @@
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between align-items-center';
                 li.innerHTML = `
-                    <span>${item.label}</span>
+                    <span data-bs-toggle="tooltip" data-bs-placement="left" title="${item.tooltip || ''}">${item.label}</span>
                     <span class="badge bg-primary rounded-pill">${item.value}</span>
                 `;
                 modelInfoList.appendChild(li);
@@ -605,10 +620,26 @@
             // Performance metrics
             if (model.metrics) {
                 const performanceMetrics = [
-                    { label: 'Precision', value: (model.metrics.precision || model.metrics['metrics/precision(B)'] || 0).toFixed(4) },
-                    { label: 'Recall', value: (model.metrics.recall || model.metrics['metrics/recall(B)'] || 0).toFixed(4) },
-                    { label: 'mAP50', value: (model.metrics.mAP50 || model.metrics['metrics/mAP50(B)'] || 0).toFixed(4) },
-                    { label: 'mAP50-95', value: (model.metrics['mAP50-95'] || model.metrics['metrics/mAP50-95(B)'] || 0).toFixed(4) }
+                    { 
+                        label: 'Precision', 
+                        value: (model.metrics.precision || model.metrics['metrics/precision(B)'] || 0).toFixed(4),
+                        tooltip: 'Porcentaje de detecciones que son correctas. Un valor alto significa que el modelo tiene pocos falsos positivos.'
+                    },
+                    { 
+                        label: 'Recall', 
+                        value: (model.metrics.recall || model.metrics['metrics/recall(B)'] || 0).toFixed(4),
+                        tooltip: 'Porcentaje de objetos reales que fueron detectados. Un valor alto significa que el modelo encuentra la mayoría de los objetos.'
+                    },
+                    { 
+                        label: 'mAP50', 
+                        value: (model.metrics.mAP50 || model.metrics['metrics/mAP50(B)'] || 0).toFixed(4),
+                        tooltip: 'Mean Average Precision con umbral IoU de 0.5. Métrica estándar para evaluar modelos de detección de objetos.'
+                    },
+                    { 
+                        label: 'mAP50-95', 
+                        value: (model.metrics['mAP50-95'] || model.metrics['metrics/mAP50-95(B)'] || 0).toFixed(4),
+                        tooltip: 'Media de mAP en distintos umbrales de IoU (0.5-0.95). Métrica más rigurosa que evalúa la precisión de localización.'
+                    }
                 ];
                 
                 // Populate performance list
@@ -616,7 +647,7 @@
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
                     li.innerHTML = `
-                        <span>${item.label}</span>
+                        <span data-bs-toggle="tooltip" data-bs-placement="left" title="${item.tooltip || ''}">${item.label}</span>
                         <span class="badge bg-success rounded-pill">${item.value}</span>
                     `;
                     performanceList.appendChild(li);
@@ -624,6 +655,16 @@
             } else {
                 performanceList.innerHTML = '<li class="list-group-item">No performance metrics available</li>';
             }
+            
+            // Initialize tooltips after adding elements
+            setTimeout(initializeTooltips, 100);
+        }
+        
+        function initializeTooltips() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
+                customClass: 'custom-tooltip'
+            }))
         }
         
         function populateMetricsTable(model) {
@@ -639,6 +680,26 @@
                 return;
             }
             
+            // Diccionario de explicaciones para métricas comunes
+            const metricExplanations = {
+                'precision': 'Porcentaje de detecciones que son correctas. Valores más altos indican menos falsos positivos.',
+                'recall': 'Porcentaje de objetos reales que fueron detectados. Valores más altos indican menos falsos negativos.',
+                'mAP50': 'Mean Average Precision con umbral IoU de 0.5. Métrica estándar para evaluar modelos de detección.',
+                'mAP50-95': 'Media de mAP en distintos umbrales de IoU (0.5-0.95). Métrica más rigurosa que evalúa localización precisa.',
+                'box_loss': 'Pérdida en las predicciones de las cajas delimitadoras. Valores más bajos son mejores.',
+                'cls_loss': 'Pérdida en las predicciones de clase. Valores más bajos indican mejor clasificación.',
+                'dfl_loss': 'Distribution Focal Loss, relacionado con la calidad de las predicciones. Valores más bajos son mejores.',
+                'fitness': 'Puntuación general que combina precisión y recall. Valores más altos indican mejor rendimiento general.',
+                'epochs': 'Número total de épocas de entrenamiento completadas.',
+                'lr0': 'Tasa de aprendizaje inicial.',
+                'lrf': 'Tasa de aprendizaje final.',
+                'patience': 'Número de épocas sin mejora antes de detener el entrenamiento (early stopping).',
+                'time': 'Tiempo total de entrenamiento.',
+                'val/box_loss': 'Pérdida de cajas delimitadoras en el conjunto de validación.',
+                'val/cls_loss': 'Pérdida de clasificación en el conjunto de validación.',
+                'val/dfl_loss': 'Distribution Focal Loss en el conjunto de validación.'
+            };
+            
             // Add all metrics to table
             Object.entries(model.metrics).forEach(([key, value]) => {
                 const tr = document.createElement('tr');
@@ -649,12 +710,33 @@
                     formattedValue = value.toFixed(4);
                 }
                 
+                // Get explanation for this metric if available
+                let explanation = '';
+                // Check for exact match
+                if (metricExplanations[key]) {
+                    explanation = metricExplanations[key];
+                } else {
+                    // Check for partial matches
+                    for (const [metricKey, metricExplanation] of Object.entries(metricExplanations)) {
+                        if (key.includes(metricKey)) {
+                            explanation = metricExplanation;
+                            break;
+                        }
+                    }
+                }
+                
                 tr.innerHTML = `
-                    <td>${key}</td>
+                    <td>
+                        <span data-bs-toggle="tooltip" data-bs-placement="right" 
+                              title="${explanation}">${key}</span>
+                    </td>
                     <td>${formattedValue}</td>
                 `;
                 metricsTableBody.appendChild(tr);
             });
+            
+            // Initialize tooltips after adding elements
+            setTimeout(initializeTooltips, 100);
         }
         
         function populateVisualizations(model) {
@@ -672,15 +754,36 @@
                 return;
             }
             
-            // Mapping of file names to friendly titles
+            // Mapping of file names to friendly titles and explanations
             const fileLabels = {
-                'labels.jpg': 'Dataset Labels',
-                'results.png': 'Training Results',
-                'confusion_matrix.png': 'Confusion Matrix',
-                'PR_curve.png': 'Precision-Recall Curve',
-                'F1_curve.png': 'F1 Curve',
-                'P_curve.png': 'Precision Curve',
-                'R_curve.png': 'Recall Curve'
+                'labels.jpg': {
+                    title: 'Dataset Labels', 
+                    explanation: 'Muestra la distribución de clases en el conjunto de datos. Barras más altas indican más ejemplos de esa clase.'
+                },
+                'results.png': {
+                    title: 'Training Results', 
+                    explanation: 'Resumen del entrenamiento con métricas clave como precisión, recall y pérdidas a lo largo de las épocas. Las curvas descendentes de pérdida indican progreso en el aprendizaje.'
+                },
+                'confusion_matrix.png': {
+                    title: 'Confusion Matrix',
+                    explanation: 'Visualiza qué clases se confunden entre sí. Los valores en la diagonal principal deberían ser altos, indicando predicciones correctas.'
+                },
+                'PR_curve.png': {
+                    title: 'Precision-Recall Curve',
+                    explanation: 'Muestra el balance entre precisión y recall. Un área mayor bajo la curva indica mejor rendimiento.'
+                },
+                'F1_curve.png': {
+                    title: 'F1 Curve',
+                    explanation: 'La puntuación F1 es la media armónica de precisión y recall. Valores más altos indican mejor equilibrio entre ambas métricas.'
+                },
+                'P_curve.png': {
+                    title: 'Precision Curve',
+                    explanation: 'Muestra la precisión (% de detecciones correctas) en diferentes umbrales de confianza.'
+                },
+                'R_curve.png': {
+                    title: 'Recall Curve',
+                    explanation: 'Muestra el recall (% de objetos detectados) en diferentes umbrales de confianza.'
+                }
             };
             
             // Add all image files to gallery
@@ -690,20 +793,24 @@
                     const col = document.createElement('div');
                     col.className = 'col';
                     
-                    const title = fileLabels[filename] || filename;
+                    const fileInfo = fileLabels[filename] || { title: filename, explanation: 'Gráfico de entrenamiento' };
                     
                     col.innerHTML = `
                         <div class="card model-artifact h-100">
                             <div class="card-header">
-                                <h6 class="card-title mb-0">${title}</h6>
+                                <h6 class="card-title mb-0" data-bs-toggle="tooltip" data-bs-placement="top" 
+                                    title="${fileInfo.explanation}">${fileInfo.title}</h6>
                             </div>
-                            <img src="${url}" class="artifact-thumbnail" alt="${title}" 
+                            <img src="${url}" class="artifact-thumbnail" alt="${fileInfo.title}" 
                                  onclick="window.open('${url}', '_blank', 'width=800,height=600')">
                         </div>
                     `;
                     visualizationsGallery.appendChild(col);
                 }
             });
+            
+            // Initialize tooltips after adding elements
+            setTimeout(initializeTooltips, 100);
         }
         
         function populateConfig(model) {
