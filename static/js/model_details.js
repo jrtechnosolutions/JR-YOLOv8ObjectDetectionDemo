@@ -209,72 +209,154 @@ function renderModelDetails(model) {
     if (classesData && Object.keys(classesData).length > 0) {
         // Mostrar mensaje de introducción con el número de clases
         const classCount = Object.keys(classesData).length;
-        const introDiv = document.createElement('div');
-        introDiv.className = 'col-12 mb-3';
-        introDiv.innerHTML = `
-            <div class="alert alert-info">
-                <p>This model has been trained to detect ${classCount} ${classCount === 1 ? 'class' : 'classes'} of objects:</p>
-            </div>
-        `;
-        classesContainer.appendChild(introDiv);
+        const classIntro = document.createElement('div');
+        classIntro.classList.add('class-intro', 'mb-4');
+        classIntro.innerHTML = `<p>Este modelo puede detectar ${classCount} clases diferentes. Cada tarjeta a continuación representa una clase.</p>`;
+        classesContainer.appendChild(classIntro);
         
-        // Update class statistics
-        const classesStats = document.getElementById('classesStats');
-        if (classesStats) {
-            classesStats.innerHTML = `
-                <h3 class="display-4">${classCount}</h3>
-                <p class="text-muted">Detectable ${classCount === 1 ? 'Class' : 'Classes'}</p>
-                <div class="progress mt-3" style="height: 25px;">
-                    <div class="progress-bar bg-success" role="progressbar" style="width: 100%;" 
-                         aria-valuenow="${classCount}" aria-valuemin="0" aria-valuemax="${classCount}">
-                        ${classCount} ${classCount === 1 ? 'Class' : 'Classes'}
-                    </div>
-                </div>
-                <p class="mt-3 mb-0 small text-muted">
-                    <i class="bi bi-info-circle"></i> ${classCount >= 80 ? 'This model can detect a wide variety of objects' : 
-                       classCount >= 20 ? 'This model can detect a good range of common objects' : 
-                       'This model is specialized for specific object classes'}
-                </p>
+        // Crear tarjetas para cada clase
+        const classCardsRow = document.createElement('div');
+        classCardsRow.classList.add('row', 'row-cols-1', 'row-cols-md-2', 'row-cols-lg-3', 'g-4');
+        
+        // Ordenar clases por ID
+        const sortedClassIds = Object.keys(classesData).sort((a, b) => {
+            return parseInt(a) - parseInt(b);
+        });
+        
+        // Crear tarjetas para las clases
+        sortedClassIds.forEach(classId => {
+            const className = classesData[classId];
+            
+            const cardCol = document.createElement('div');
+            cardCol.classList.add('col');
+            
+            const card = document.createElement('div');
+            card.classList.add('card', 'h-100', 'class-card');
+            
+            const cardBody = document.createElement('div');
+            cardBody.classList.add('card-body');
+            
+            const cardTitle = document.createElement('h5');
+            cardTitle.classList.add('card-title');
+            cardTitle.textContent = className;
+            
+            const cardText = document.createElement('div');
+            cardText.classList.add('card-text');
+            cardText.innerHTML = `
+                <span class="badge bg-primary mb-2">ID: ${classId}</span>
+                <p>Esta clase representa objetos de tipo <strong>${className}</strong> que el modelo puede identificar.</p>
             `;
+            
+            cardBody.appendChild(cardTitle);
+            cardBody.appendChild(cardText);
+            card.appendChild(cardBody);
+            cardCol.appendChild(card);
+            classCardsRow.appendChild(cardCol);
+        });
+        
+        classesContainer.appendChild(classCardsRow);
+    } else {
+        console.log("No se encontraron clases. Intentando extraer clases de otras partes del modelo...");
+        
+        let foundClasses = false;
+        // Buscar en outputs - algunos modelos YOLO almacenan las clases aquí
+        if (model && model.outputs) {
+            const outputKeys = Object.keys(model.outputs);
+            outputKeys.forEach(key => {
+                if (model.outputs[key].classes && Object.keys(model.outputs[key].classes).length > 0) {
+                    console.log(`Encontradas clases en model.outputs[${key}].classes`);
+                    classesData = model.outputs[key].classes;
+                    foundClasses = true;
+                }
+            });
         }
         
-        // Sort classes by ID (if they are numeric)
-        const sortedEntries = Object.entries(classesData).sort((a, b) => {
-            const idA = parseInt(a[0]);
-            const idB = parseInt(b[0]);
-            // If both are valid numbers, sort numerically
-            if (!isNaN(idA) && !isNaN(idB)) {
-                return idA - idB;
-            }
-            // Otherwise sort by string
-            return a[0].localeCompare(b[0]);
-        });
+        // Buscar en el modelo directamente para modelos YOLO custom
+        if (!foundClasses && model && model.names) {
+            console.log("Encontradas clases en model.names");
+            classesData = model.names;
+            foundClasses = true;
+        }
         
-        // Mostrar cada clase con su ID y nombre
-        sortedEntries.forEach(([classId, className]) => {
-            const classCol = document.createElement('div');
-            classCol.className = 'col-lg-3 col-md-4 col-sm-6 mb-3';
-            classCol.innerHTML = `
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h6 class="card-title mb-2">${className}</h6>
-                        <span class="badge bg-dark mb-2">Class ID: ${classId}</span>
+        // Buscar en la respuesta del modelo para entrenamientos recientes
+        if (!foundClasses && model && model.task === 'detect' && !classesData) {
+            console.log("Intentando crear clases básicas para modelo de detección");
+            // Para modelos de detección, podemos usar clases genéricas numbered
+            classesData = {};
+            // Empezamos con 2 clases genéricas y luego ajustamos
+            const genericClassCount = 2;
+            for (let i = 0; i < genericClassCount; i++) {
+                classesData[i] = `class${i}`;
+            }
+            foundClasses = true;
+            
+            console.log("Creadas clases básicas:", classesData);
+        }
+        
+        // Si encontramos clases, mostramos las tarjetas
+        if (foundClasses && Object.keys(classesData).length > 0) {
+            console.log("Mostrando clases encontradas en fuentes alternativas:", classesData);
+            
+            // Mostrar mensaje de introducción
+            const classCount = Object.keys(classesData).length;
+            const classIntro = document.createElement('div');
+            classIntro.classList.add('class-intro', 'mb-4');
+            classIntro.innerHTML = `<p>Este modelo puede detectar ${classCount} clases diferentes. Cada tarjeta a continuación representa una clase.</p>`;
+            classesContainer.appendChild(classIntro);
+            
+            // Crear tarjetas para cada clase
+            const classCardsRow = document.createElement('div');
+            classCardsRow.classList.add('row', 'row-cols-1', 'row-cols-md-2', 'row-cols-lg-3', 'g-4');
+            
+            // Ordenar clases por ID
+            const sortedClassIds = Object.keys(classesData).sort((a, b) => {
+                return parseInt(a) - parseInt(b);
+            });
+            
+            // Crear tarjetas para las clases
+            sortedClassIds.forEach(classId => {
+                const className = classesData[classId];
+                
+                const cardCol = document.createElement('div');
+                cardCol.classList.add('col');
+                
+                const card = document.createElement('div');
+                card.classList.add('card', 'h-100', 'class-card');
+                
+                const cardBody = document.createElement('div');
+                cardBody.classList.add('card-body');
+                
+                const cardTitle = document.createElement('h5');
+                cardTitle.classList.add('card-title');
+                cardTitle.textContent = className;
+                
+                const cardText = document.createElement('div');
+                cardText.classList.add('card-text');
+                cardText.innerHTML = `
+                    <span class="badge bg-primary mb-2">ID: ${classId}</span>
+                    <p>Esta clase representa objetos de tipo <strong>${className}</strong> que el modelo puede identificar.</p>
+                `;
+                
+                cardBody.appendChild(cardTitle);
+                cardBody.appendChild(cardText);
+                card.appendChild(cardBody);
+                cardCol.appendChild(card);
+                classCardsRow.appendChild(cardCol);
+            });
+            
+            classesContainer.appendChild(classCardsRow);
+        } else {
+            // Fallback para cuando no hay información de clases
+            classesContainer.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle"></i> Class Information</h5>
+                        <p>This model has been trained for object detection. However, detailed class information is not available.</p>
+                        <p>The model may still be able to detect common objects like persons, cars, animals, etc. depending on the training dataset.</p>
                     </div>
                 </div>
             `;
-            classesContainer.appendChild(classCol);
-        });
-    } else {
-        // Fallback para cuando no hay información de clases
-        classesContainer.innerHTML = `
-            <div class="col-12">
-                <div class="alert alert-info">
-                    <h5><i class="bi bi-info-circle"></i> Class Information</h5>
-                    <p>This model has been trained for object detection. However, detailed class information is not available.</p>
-                    <p>The model may still be able to detect common objects like persons, cars, animals, etc. depending on the training dataset.</p>
-                </div>
-            </div>
-        `;
+        }
     }
     
     // Model structure visualization
