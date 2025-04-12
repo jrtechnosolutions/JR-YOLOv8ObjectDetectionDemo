@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Model Details{% endblock %}
+
+{% block extra_css %}
+<style>
+    .model-header {
+        background-color: #f8f9fa;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .model-section {
+        margin-bottom: 2.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #eee;
+    }
+    .model-section:last-child {
+        border-bottom: none;
+    }
+    .model-specs {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .model-specs table {
+        margin-bottom: 0;
+    }
+    .architecture-diagram {
+        max-width: 100%;
+        height: auto;
+        margin: 1.5rem 0;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+    }
+    .code-block {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        position: relative;
+    }
+    .copy-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+    .metrics-badge {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .model-card {
+        height: 100%;
+    }
+    .use-case-card {
+        height: 100%;
+        transition: all 0.2s ease;
+    }
+    .use-case-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="model-header">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="display-5" id="modelName">Model Details</h1>
+                <p class="lead text-muted" id="modelDescription">Detailed information about the trained YOLO model</p>
+                <p>
+                    <span class="badge bg-primary" id="modelType">YOLOv8</span>
+                    <span class="badge bg-secondary" id="modelSize">5.95 MB</span>
+                    <span class="badge bg-success" id="modelTask">Object Detection</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            
+            <!-- Overview Section -->
+            <div class="model-section">
+                <h2><i class="bi bi-info-circle"></i> Model Overview</h2>
+                <p id="modelOverview">This page displays detailed information about the trained YOLO model, including its architecture, performance metrics, and usage instructions.</p>
+                
+                <div class="model-specs">
+                    <h5>Model Specifications</h5>
+                    <table class="table">
+                        <tbody id="modelSpecsTable">
+                            <!-- Will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <h5>Training Information</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-gear"></i> Training Configuration</h6>
+                                <table class="table table-sm">
+                                    <tbody id="trainingConfigTable">
+                                        <!-- Will be populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-graph-up"></i> Performance Metrics</h6>
+                                <div id="performanceMetrics">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Architecture Section -->
+            <div class="model-section">
+                <h2><i class="bi bi-layers"></i> Model Architecture</h2>
+                <p>YOLO (You Only Look Once) is a state-of-the-art object detection system that processes images in a single pass through a neural network, making it both accurate and efficient.</p>
+                
+                <div class="text-center">
+                    <img src="{{ url_for('static', filename='docs/yolo_architecture.png') }}" alt="YOLO Architecture Diagram" class="architecture-diagram" id="architectureDiagram">
+                </div>
+                
+                <h5>Key Architectural Features</h5>
+                <div class="row mb-4" id="architectureFeatures">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title">Single Network Design</h6>
+                                <p class="card-text">YOLO uses a single neural network to predict bounding boxes and class probabilities directly from full images in one evaluation.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title">Grid-based Prediction</h6>
+                                <p class="card-text">The image is divided into a grid, and each grid cell predicts bounding boxes and confidence scores for objects centered within that cell.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title">Backbone Network</h6>
+                                <p class="card-text">YOLOv8 uses an efficient CSPDarknet backbone, which extracts powerful features while maintaining computational efficiency.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title">Neck & Head</h6>
+                                <p class="card-text">The neck aggregates features from different backbone layers, and the head performs the final detection with anchor-free detection mechanism.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5>Model Structure</h5>
+                <p>This YOLO model consists of multiple layers that transform input images into predictions. Below is a high-level overview:</p>
+                <div id="modelStructure">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+            
+            <!-- Classes Section -->
+            <div class="model-section">
+                <h2><i class="bi bi-tags"></i> Detection Classes</h2>
+                <p>This model has been trained to detect the following classes of objects:</p>
+                
+                <div class="row mb-4" id="classesContainer">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+            
+            <!-- Usage Section -->
+            <div class="model-section">
+                <h2><i class="bi bi-code-square"></i> Usage Guide</h2>
+                <p>Here's how to use this model for inference in various contexts:</p>
+                
+                <h5>Python Code Example</h5>
+                <div class="code-block">
+                    <button class="btn btn-sm btn-outline-secondary copy-btn" onclick="copyToClipboard('pythonCode')" title="Copy code to clipboard">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                    <pre id="pythonCode">
+# Python code to use this model with Ultralytics YOLO
+from ultralytics import YOLO
+
+# Load the model
+model = YOLO('path/to/model.pt')
+
+# Run inference on an image
+results = model('path/to/image.jpg')
+
+# Process results
+for r in results:
+    boxes = r.boxes  # Bounding boxes
+    # Print class and confidence for each detection
+    for box in boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        print(f"Class: {model.names[cls]}, Confidence: {conf:.2f}")
+</pre>
+                </div>
+                
+                <h5>Best Practices</h5>
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-lightning"></i> Performance Optimization</h6>
+                                <ul class="mb-0">
+                                    <li>Use images similar to those in the training dataset</li>
+                                    <li>For faster inference, consider using smaller input resolutions</li>
+                                    <li>Use GPU acceleration when available</li>
+                                    <li>Batch processing multiple images improves throughput</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-gear-wide-connected"></i> Deployment Options</h6>
+                                <ul class="mb-0">
+                                    <li>Convert to ONNX for cross-platform compatibility</li>
+                                    <li>Use TensorRT for optimized GPU inference</li>
+                                    <li>Consider OpenVINO for Intel hardware optimization</li>
+                                    <li>For mobile deployment, consider TFLite or CoreML conversions</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5>Common Use Cases</h5>
+                <div class="row" id="useCases">
+                    <div class="col-md-4 mb-3">
+                        <div class="card use-case-card">
+                            <div class="card-body">
+                                <h6 class="card-title">Object Detection</h6>
+                                <p class="card-text">Identify and locate objects in images and videos with bounding boxes.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card use-case-card">
+                            <div class="card-body">
+                                <h6 class="card-title">Video Analysis</h6>
+                                <p class="card-text">Process video streams for real-time object detection applications.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card use-case-card">
+                            <div class="card-body">
+                                <h6 class="card-title">Automated Monitoring</h6>
+                                <p class="card-text">Create systems for automatic surveillance and object counting.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Download Section -->
+            <div class="model-section text-center">
+                <h2><i class="bi bi-download"></i> Download Model</h2>
+                <p>Download the trained model in your preferred format:</p>
+                
+                <div class="row justify-content-center">
+                    <div class="col-md-4 mb-3">
+                        <div class="card model-card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">PyTorch Model</h5>
+                                <p class="card-text">Original model format<br>Compatible with Ultralytics YOLO</p>
+                                <a href="#" id="downloadPyTorch" class="btn btn-primary">
+                                    <i class="bi bi-download"></i> Download PyTorch (.pt)
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card model-card" id="onnxCard">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">ONNX Model</h5>
+                                <p class="card-text">Cross-platform format<br>Hardware-accelerated inference</p>
+                                <a href="#" id="downloadONNX" class="btn btn-secondary">
+                                    <i class="bi bi-download"></i> Download ONNX (.onnx)
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-5">
+                <a href="{{ url_for('training') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Training
+                </a>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/model_details.js') }}"></script>
+<script>
+    // Initialize the page with the model ID from the URL
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const modelId = urlParams.get('id');
+        
+        if (modelId) {
+            loadModelDetails(modelId);
+        } else {
+            console.error('No model ID provided in URL');
+        }
+    });
+    
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        const textToCopy = element.textContent;
+        
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            // Show a temporary tooltip or notification
+            const copyBtn = element.parentElement.querySelector('.copy-btn');
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+        });
+    }
+</script>
+{% endblock %}

@@ -2,6 +2,8 @@
 
 {% block title %}YOLO Vision AI - Model Training{% endblock %}
 
+
+
 {% block extra_css %}
 <style>
     .upload-area {
@@ -96,7 +98,12 @@
         --bs-tooltip-max-width: 300px;
     }
 </style>
+
+<!-- Bootstrap Modal CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 {% endblock %}
+
+
 
 {% block content %}
 <div class="row">
@@ -371,11 +378,626 @@
         </div>
     </div>
 </div>
+
+<!-- Modal for Model Architecture -->
+html" %}
+
+{% block title %}YOLO Vision AI - Model Training{% endblock %}
+
+
+
+
+
+
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 3rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        transition: all 0.2s ease;
+        background-color: #f8f9fa;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f1f8ff;
+    }
+    .upload-area.dragover {
+        background-color: #e8f4ff;
+        border-color: #0d6efd;
+    }
+    .training-params {
+        margin-top: 1.5rem;
+    }
+    .training-status {
+        margin-top: 2rem;
+        display: none;
+    }
+    .progress {
+        height: 25px;
+    }
+    .progress-bar {
+        font-size: 0.9rem;
+        line-height: 25px;
+    }
+    .model-list {
+        margin-top: 2rem;
+    }
+    .model-card {
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+    }
+    .model-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        margin: 2rem 0;
+    }
+    .dataset-info {
+        display: none;
+        margin-top: 1rem;
+    }
+    .model-artifact {
+        margin-bottom: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        overflow: hidden;
+    }
+    .model-artifact img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+    }
+    .metrics-table {
+        font-size: 0.9rem;
+    }
+    .metrics-table th {
+        font-weight: 600;
+    }
+    .model-details-section {
+        margin-top: 2rem;
+        display: none;
+    }
+    .artifact-thumbnail {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .artifact-thumbnail:hover {
+        transform: scale(1.02);
+    }
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+    }
+    .training-artifacts-container {
+        margin-top: 1.5rem;
+    }
+    
+    /* Tooltip styles */
+    .custom-tooltip {
+        --bs-tooltip-bg: rgba(0, 0, 0, 0.8);
+        --bs-tooltip-color: #fff;
+        --bs-tooltip-max-width: 300px;
+    }
+</style>
+
+<!-- Bootstrap Modal CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+{% endblock %}
+
+
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <h1 class="mb-4">Model Training</h1>
+        <p class="lead">Train your own YOLO models on custom datasets for specialized computer vision tasks.</p>
+        
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading"><i class="bi bi-info-circle"></i> Training Information</h4>
+            <p>Upload your dataset as a ZIP file containing images and annotations. The dataset should be organized in a structure that YOLO can understand, typically with separate folders for images and labels.</p>
+            <hr>
+            <p class="mb-0">Training process will run on the server. You can close this page and come back later to check progress or download your trained model.</p>
+        </div>
+        
+        <!-- Upload Dataset Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">1. Upload Dataset</h3>
+            </div>
+            <div class="card-body">
+                <div class="upload-area" id="dropArea">
+                    <i class="bi bi-cloud-arrow-up fs-1 mb-3 text-primary"></i>
+                    <h5>Drag & Drop your dataset ZIP file here</h5>
+                    <p class="text-muted">Maximum file size: 500MB</p>
+                    <input type="file" id="datasetInput" class="d-none" accept=".zip">
+                    <button class="btn btn-primary" id="browseButton">Browse Files</button>
+                </div>
+                
+                <div class="dataset-info" id="datasetInfo">
+                    <div class="alert alert-success">
+                        <h5 class="alert-heading"><i class="bi bi-check-circle"></i> Dataset Ready</h5>
+                        <p id="datasetDetails">dataset.zip (0 MB)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Training Parameters Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title mb-0">2. Configure Training</h3>
+            </div>
+            <div class="card-body">
+                <div class="row training-params">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="modelTypeSelect" class="form-label">Model Type</label>
+                            <select class="form-select" id="modelTypeSelect">
+                                <option value="detection">Detection (bounding boxes)</option>
+                                <option value="segmentation">Segmentation (masks)</option>
+                                <option value="pose">Pose Estimation (keypoints)</option>
+                                <option value="classification">Classification</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="epochsInput" class="form-label">Training Epochs</label>
+                            <input type="number" class="form-control" id="epochsInput" value="10" min="1" max="100">
+                            <div class="form-text">Number of complete passes through the training dataset.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="batchSizeInput" class="form-label">Batch Size</label>
+                            <input type="number" class="form-control" id="batchSizeInput" value="16" min="1" max="64">
+                            <div class="form-text">Number of samples processed before model update.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="imgSizeInput" class="form-label">Image Size</label>
+                            <input type="number" class="form-control" id="imgSizeInput" value="640" min="320" max="1280" step="32">
+                            <div class="form-text">Input resolution for the model.</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid">
+                    <button class="btn btn-primary btn-lg" id="startTrainingButton">
+                        <i class="bi bi-play-fill"></i> Start Training
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Starting training process...</p>
+        </div>
+        
+        <!-- Training Status -->
+        <div class="training-status" id="trainingStatus">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Training Status</h3>
+                </div>
+                <div class="card-body">
+                    <h4 id="statusMessage">Training in progress...</h4>
+                    
+                    <div class="progress mt-4">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    
+                    <div class="mt-3" id="trainingDetails">
+                        <!-- Training details will be populated here -->
+                    </div>
+                    
+                    <div class="completed-actions mt-4" id="completedActions" style="display: none;">
+                        <h5>Training Complete!</h5>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <a href="#" class="btn btn-primary d-block mb-2" id="downloadModelButton">
+                                    <i class="bi bi-download"></i> Download PyTorch Model
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="#" class="btn btn-outline-primary d-block mb-2" id="downloadOnnxButton">
+                                    <i class="bi bi-download"></i> Download ONNX Model
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Button to show complete model details -->
+                        <div class="d-grid mt-3">
+                            <button class="btn btn-info" id="showModelDetailsButton">
+                                <i class="bi bi-graph-up"></i> View Complete Training Results
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Existing Models -->
+        <div class="model-list">
+            <h3>Available Models</h3>
+            <div class="row" id="modelsList">
+                <!-- Models will be populated here -->
+                <div class="col-12 text-center py-4 text-muted" id="noModelsMessage">
+                    <i class="bi bi-archive fs-1"></i>
+                    <p class="mt-2">No trained models available yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Section for Model Details -->
+<div class="card mt-4 model-details-section" id="modelDetailsSection">
+    <div class="card-header">
+        <h3 class="card-title mb-0">Model Training Results</h3>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-pills mb-3" id="modelDetailsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="summary-tab" data-bs-toggle="pill" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">
+                    <i class="bi bi-info-circle"></i> Summary
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="metrics-tab" data-bs-toggle="pill" data-bs-target="#metrics" type="button" role="tab" aria-controls="metrics" aria-selected="false">
+                    <i class="bi bi-graph-up"></i> Metrics
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="visualizations-tab" data-bs-toggle="pill" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">
+                    <i class="bi bi-image"></i> Visualizations
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="config-tab" data-bs-toggle="pill" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="false">
+                    <i class="bi bi-gear"></i> Configuration
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="modelDetailsTabContent">
+            <!-- Summary Tab -->
+            <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Model Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="modelInfoList">
+                                    <!-- Model info will be populated here -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Performance Overview</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="performanceList">
+                                    <!-- Performance metrics will be populated here -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Metrics Tab -->
+            <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
+                <div class="alert alert-info mb-3">
+                    <h5><i class="bi bi-info-circle"></i> Metrics Interpretation</h5>
+                    <p>Object detection metrics evaluate the model's ability to correctly identify and locate objects. Higher values (closer to 1.0) indicate better performance.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metricsTableBody">
+                            <!-- Metrics will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Visualizations Tab -->
+            <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
+                <div class="alert alert-info mb-3">
+                    <h5><i class="bi bi-info-circle"></i> Graph Interpretation</h5>
+                    <p>These graphs visualize the model's performance during training. Click on any image to view it in full size. Curves showing an upward trend generally indicate model improvement.</p>
+                </div>
+                <div class="row row-cols-1 row-cols-md-2 g-4" id="visualizationsGallery">
+                    <!-- Visualizations will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Configuration Tab -->
+            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Training Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info mb-3">
+                            <h5><i class="bi bi-info-circle"></i> Configuration Importance</h5>
+                            <p>The training configuration includes all hyperparameters and settings used during model training. Understanding these parameters is crucial for reproducing results and fine-tuning your model's performance.</p>
+                        </div>
+                        <div class="config-explanation mb-3">
+                            <h6>Key Parameters Explained:</h6>
+                            <ul class="list-group">
+                                <li class="list-group-item"><strong>task</strong>: Defines the model's purpose (detection, segmentation, pose, etc.)</li>
+                                <li class="list-group-item"><strong>model</strong>: Base model architecture used for training</li>
+                                <li class="list-group-item"><strong>epochs</strong>: Number of complete passes through the dataset (more epochs generally improve performance)</li>
+                                <li class="list-group-item"><strong>batch</strong>: Number of images processed in each training step (affects memory usage and training speed)</li>
+                                <li class="list-group-item"><strong>imgsz</strong>: Input image resolution (higher resolution improves accuracy but requires more memory)</li>
+                                <li class="list-group-item"><strong>lr0/lrf</strong>: Initial/final learning rates (control how quickly the model adapts during training)</li>
+                                <li class="list-group-item"><strong>patience</strong>: Number of epochs to wait before early stopping if no improvement occurs</li>
+                                <li class="list-group-item"><strong>optimizer</strong>: Algorithm used to update model weights during training</li>
+                                <li class="list-group-item"><strong>mosaic/mixup/fliplr</strong>: Data augmentation techniques that help improve model generalization</li>
+                            </ul>
+                        </div>
+                        <pre id="configContent" class="bg-light p-3 rounded"><!-- Config will be populated here --></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Model Architecture -->
+<div class="modal fade" id="modelArchitectureModal" tabindex="-1" aria-labelledby="modelArchitectureModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modelArchitectureModalLabel">Model Architecture & Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="alert alert-info">
+                            <h5><i class="bi bi-info-circle"></i> About YOLO Architecture</h5>
+                            <p>YOLO (You Only Look Once) is a state-of-the-art object detection system that processes images in a single pass through a neural network, making it both accurate and efficient.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Model Structure</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="modelStructureInfo">
+                                    <!-- Will be populated dynamically -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Training Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="modelTrainingInfo">
+                                    <!-- Will be populated dynamically -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Classes & Capabilities</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="modelClassesInfo">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Usage Guide</h5>
+                            </div>
+                            <div class="card-body">
+                                <h6>How to use this model:</h6>
+                                <div class="bg-light p-3 rounded mb-3">
+                                    <pre class="mb-0"><code># Python code to use this model with Ultralytics YOLO
+from ultralytics import YOLO
+
+# Load the model
+model = YOLO('path/to/model.pt')
+
+# Run inference on an image
+results = model('path/to/image.jpg')
+
+# Process results
+for r in results:
+    boxes = r.boxes  # Bounding boxes
+    # Print class and confidence for each detection
+    for box in boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        print(f"Class: {model.names[cls]}, Confidence: {conf:.2f}")</code></pre>
+                                </div>
+                                <h6>Best practices:</h6>
+                                <ul>
+                                    <li>For optimal performance, use images similar to those in the training dataset</li>
+                                    <li>The model works best with well-lit images and clear subjects</li>
+                                    <li>Adjust confidence threshold based on your needs (higher for fewer false positives)</li>
+                                    <li>When deploying, consider using TensorRT, OpenVINO, or ONNX for optimized inference</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Bootstrap components
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        
+        // Check if Bootstrap modal is available
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            console.log("Bootstrap modal is available");
+        } else {
+            console.error("Bootstrap modal is not available. Loading Bootstrap JS manually.");
+            // Dynamically load Bootstrap JS if not available
+            const bootstrapScript = document.createElement('script');
+            bootstrapScript.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js';
+            document.head.appendChild(bootstrapScript);
+        }
+        
+        // Create modal dynamically if it doesn't exist
+        if (!document.getElementById('modelArchitectureModal')) {
+            console.log("Creating modal dynamically");
+            const modalHTML = `
+            <div class="modal fade" id="modelArchitectureModal" tabindex="-1" aria-labelledby="modelArchitectureModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modelArchitectureModalLabel">Model Architecture & Details</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="alert alert-info">
+                                        <h5><i class="bi bi-info-circle"></i> About YOLO Architecture</h5>
+                                        <p>YOLO (You Only Look Once) is a state-of-the-art object detection system that processes images in a single pass through a neural network, making it both accurate and efficient.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title">Model Structure</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="list-group list-group-flush" id="modelStructureInfo">
+                                                <!-- Will be populated dynamically -->
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5 class="card-title">Training Information</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="list-group list-group-flush" id="modelTrainingInfo">
+                                                <!-- Will be populated dynamically -->
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title">Classes & Capabilities</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="modelClassesInfo">
+                                                <!-- Will be populated dynamically -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="card-title">Usage Guide</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <h6>How to use this model:</h6>
+                                            <div class="bg-light p-3 rounded mb-3">
+                                                <pre class="mb-0"><code># Python code to use this model with Ultralytics YOLO
+from ultralytics import YOLO
+
+# Load the model
+model = YOLO('path/to/model.pt')
+
+# Run inference on an image
+results = model('path/to/image.jpg')
+
+# Process results
+for r in results:
+    boxes = r.boxes  # Bounding boxes
+    # Print class and confidence for each detection
+    for box in boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        print(f"Class: {model.names[cls]}, Confidence: {conf:.2f}")</code></pre>
+                                            </div>
+                                            <h6>Best practices:</h6>
+                                            <ul>
+                                                <li>For optimal performance, use images similar to those in the training dataset</li>
+                                                <li>The model works best with well-lit images and clear subjects</li>
+                                                <li>Adjust confidence threshold based on your needs (higher for fewer false positives)</li>
+                                                <li>When deploying, consider using TensorRT, OpenVINO, or ONNX for optimized inference</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            // Append modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+        
         // DOM Elements
         const datasetInput = document.getElementById('datasetInput');
         const browseButton = document.getElementById('browseButton');
@@ -962,24 +1584,169 @@
             }
         }
         
+        // Function to show model architecture details
+        function showModelArchitecture(modelName, modelData) {
+            console.log("Showing model details for:", modelName);
+            console.log("Model data:", modelData);
+            
+            try {
+                // Get modal element
+                const modalElement = document.getElementById('modelArchitectureModal');
+                console.log("Modal element:", modalElement);
+                
+                if (!modalElement) {
+                    console.error("Modal element not found in DOM");
+                    return;
+                }
+                
+                // Get modal elements
+                const modalTitle = document.getElementById('modelArchitectureModalLabel');
+                const modelStructureInfo = document.getElementById('modelStructureInfo');
+                const modelTrainingInfo = document.getElementById('modelTrainingInfo');
+                const modelClassesInfo = document.getElementById('modelClassesInfo');
+                
+                // Set modal title
+                modalTitle.textContent = `${modelName} - Architecture & Details`;
+                
+                // Populate model structure information
+                modelStructureInfo.innerHTML = '';
+                const baseModelType = modelData.type || 'PyTorch';
+                const baseModelName = modelData.model_info && modelData.model_info.base_model ? 
+                                    modelData.model_info.base_model : 'YOLOv8n';
+                
+                const structureItems = [
+                    { label: 'Architecture Type', value: 'YOLO (You Only Look Once)', badge: 'primary' },
+                    { label: 'Version', value: 'YOLOv8', badge: 'info' },
+                    { label: 'Base Model', value: baseModelName, badge: 'primary' },
+                    { label: 'File Format', value: baseModelType, badge: 'secondary' },
+                    { label: 'Model Size', value: formatFileSize(modelData.model_info.model_size), badge: 'warning' },
+                    { label: 'Input Resolution', value: `${modelData.model_info.imgsz || 640}×${modelData.model_info.imgsz || 640}`, badge: 'info' },
+                    { label: 'Framework', value: 'Ultralytics', badge: 'success' }
+                ];
+                
+                structureItems.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <span>${item.label}</span>
+                        <span class="badge bg-${item.badge} rounded-pill">${item.value}</span>
+                    `;
+                    modelStructureInfo.appendChild(li);
+                });
+                
+                // Populate training information
+                modelTrainingInfo.innerHTML = '';
+                
+                // Get metrics if available
+                const metrics = modelData.metrics || {};
+                
+                const trainingItems = [
+                    { label: 'Training Date', value: modelData.created, badge: 'info' },
+                    { label: 'Task Type', value: 'Object Detection', badge: 'primary' },
+                    { label: 'Precision', value: (metrics.precision || metrics['metrics/precision(B)'] || 0).toFixed(4), badge: 'success' },
+                    { label: 'Recall', value: (metrics.recall || metrics['metrics/recall(B)'] || 0).toFixed(4), badge: 'success' },
+                    { label: 'mAP50', value: (metrics.mAP50 || metrics['metrics/mAP50(B)'] || 0).toFixed(4), badge: 'success' },
+                    { label: 'Epochs Trained', value: metrics.epochs || 'N/A', badge: 'warning' }
+                ];
+                
+                trainingItems.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <span>${item.label}</span>
+                        <span class="badge bg-${item.badge} rounded-pill">${item.value}</span>
+                    `;
+                    modelTrainingInfo.appendChild(li);
+                });
+                
+                // Populate classes information
+                modelClassesInfo.innerHTML = '';
+                
+                if (modelData.model_info && modelData.model_info.classes) {
+                    const classNames = modelData.model_info.classes;
+                    let classesHtml = '<h6 class="mb-3">This model can detect the following classes:</h6>';
+                    
+                    if (typeof classNames === 'object') {
+                        classesHtml += '<div class="row">';
+                        Object.values(classNames).forEach(className => {
+                            classesHtml += `
+                                <div class="col-md-3 mb-2">
+                                    <span class="badge bg-dark">${className}</span>
+                                </div>
+                            `;
+                        });
+                        classesHtml += '</div>';
+                        
+                        classesHtml += `
+                            <div class="alert alert-success mt-3">
+                                <p><strong>Capabilities:</strong> This model is designed to detect objects in images and videos with high accuracy. It can identify ${Object.values(classNames).length} different classes of objects.</p>
+                                <p><strong>Use Cases:</strong> This model is suitable for applications in surveillance, inventory management, autonomous navigation, and content analysis.</p>
+                            </div>
+                        `;
+                    } else {
+                        classesHtml += `<p>Class information not available in structured format.</p>`;
+                    }
+                    
+                    modelClassesInfo.innerHTML = classesHtml;
+                } else {
+                    modelClassesInfo.innerHTML = `
+                        <div class="alert alert-warning">
+                            <p>No class information available for this model.</p>
+                        </div>
+                    `;
+                }
+                
+                // Create and show the modal using vanilla JS if bootstrap.Modal is not available
+                if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                    console.log("Using vanilla JS to display modal");
+                    modalElement.classList.add('show');
+                    modalElement.style.display = 'block';
+                    document.body.classList.add('modal-open');
+                    
+                    // Add backdrop
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'modal-backdrop fade show';
+                    document.body.appendChild(backdrop);
+                } else {
+                    // Show the modal using Bootstrap
+                    console.log("Using Bootstrap to display modal");
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                }
+            } catch (error) {
+                console.error("Error showing model architecture:", error);
+                alert("An error occurred while displaying model details. Please check the console for more information.");
+            }
+        }
+        
         // Function: Load models
         function loadModels() {
             fetch('/api/list-models')
                 .then(response => response.json())
-                .then(models => {
-                    if (models.length > 0) {
-                        // Hide "no models" message
+                .then(data => {
+                    // Hide loading message
+                    $("#modelsLoading").hide();
+                    
+                    if (data.models && data.models.length > 0) {
+                        // Sort models by date (latest first)
+                        data.models.sort((a, b) => new Date(b.created) - new Date(a.created));
+                        
+                        // Show models list
+                        modelsList.style.display = 'flex';
                         noModelsMessage.style.display = 'none';
                         
-                        // Clear models list
+                        // Clear existing models
                         modelsList.innerHTML = '';
                         
-                        // Add models to list
-                        models.forEach(model => {
+                        // Add each model card
+                        data.models.forEach(model => {
                             const modelCard = document.createElement('div');
-                            modelCard.className = 'col-md-6 col-lg-4';
+                            modelCard.className = 'col-md-6 col-lg-4 mb-4';
                             
                             const fileSize = formatFileSize(model.model_info.model_size);
+                            
+                            // Create a unique ID for each model's button
+                            const buttonId = `model-details-${model.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
                             
                             modelCard.innerHTML = `
                                 <div class="card model-card">
@@ -996,27 +1763,46 @@
                                                 <i class="bi bi-download"></i> Download PyTorch Model
                                             </a>
                                             ${model.has_onnx ? `
-                                                <a href="${model.onnx_path}" class="btn btn-sm btn-outline-primary" download>
+                                                <a href="${model.onnx_path}" class="btn btn-sm btn-outline-primary mb-2" download>
                                                     <i class="bi bi-download"></i> Download ONNX Model
                                                 </a>
                                             ` : ''}
-                                            <a href="/model/${model.name}" class="btn btn-sm btn-info mb-2">
+                                            <button id="${buttonId}" class="btn btn-sm btn-info" data-model-name="${model.name}">
                                                 <i class="bi bi-info-circle"></i> Model Architecture & Details
-                                            </a>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             `;
                             
                             modelsList.appendChild(modelCard);
+                            
+                            // Add event listener after appending to DOM
+                            setTimeout(() => {
+                                const detailsButton = document.getElementById(buttonId);
+                                if (detailsButton) {
+                                    detailsButton.addEventListener('click', function() {
+                                        console.log("Button clicked for model:", model.name);
+                                        // Store model data in window object to avoid JSON parsing issues
+                                        window.currentModelData = model;
+                                        showModelArchitecture(model.name, model);
+                                    });
+                                } else {
+                                    console.error("Button not found:", buttonId);
+                                }
+                            }, 100);
                         });
                     } else {
-                        // Show "no models" message
+                        // No models found
+                        modelsList.style.display = 'none';
                         noModelsMessage.style.display = 'block';
                     }
                 })
                 .catch(error => {
                     console.error('Error loading models:', error);
+                    $("#modelsLoading").hide();
+                    noModelsMessage.textContent = 'Error loading models. Please try again later.';
+                    noModelsMessage.style.display = 'block';
                 });
         }
         
@@ -1036,3 +1822,5 @@
     });
 </script>
 {% endblock %}
+
+

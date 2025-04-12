@@ -1285,6 +1285,97 @@ def serve_model_file(model_dir, model_file):
     else:
         return f"Model file not found: {model_path}", 404
 
+@app.route('/model/<model_id>')
+def model_details(model_id):
+    """
+    Render the detailed view page for a specific model
+    """
+    return render_template('model_details.html')
+
+@app.route('/api/model-details')
+def api_model_details():
+    """
+    API endpoint to get detailed information about a specific model
+    """
+    model_id = request.args.get('id')
+    if not model_id:
+        return jsonify({'error': 'Model ID is required'}), 400
+    
+    # Get models directory
+    models_dir = app.config['MODELS_FOLDER']
+    model_path = os.path.join(models_dir, model_id + '.pt')
+    
+    if not os.path.exists(model_path):
+        return jsonify({'error': 'Model not found'}), 404
+    
+    # Get model information
+    model_info = {}
+    try:
+        # Get model basic information
+        stats = os.stat(model_path)
+        model_size = stats.st_size
+        created_time = datetime.fromtimestamp(stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Check for ONNX version
+        onnx_path = os.path.join(models_dir, model_id + '.onnx')
+        has_onnx = os.path.exists(onnx_path)
+        
+        # Path to model's metadata directory
+        metadata_dir = os.path.join(models_dir, model_id)
+        model_info_file = os.path.join(metadata_dir, 'model_info.json')
+        metrics_file = os.path.join(metadata_dir, 'metrics.json')
+        args_file = os.path.join(metadata_dir, 'args.yaml')
+        
+        # Initialize model info with basic attributes
+        model_data = {
+            'name': model_id,
+            'path': f'/models/{model_id}.pt',
+            'created': created_time,
+            'type': 'PyTorch',
+            'model_info': {
+                'model_size': model_size,
+                'base_model': 'YOLOv8n'  # Default if not found in metadata
+            },
+            'metrics': {},
+            'has_onnx': has_onnx
+        }
+        
+        if has_onnx:
+            model_data['onnx_path'] = f'/models/{model_id}.onnx'
+        
+        # Load model info if available
+        if os.path.exists(model_info_file):
+            with open(model_info_file, 'r') as f:
+                info = json.load(f)
+                model_data['model_info'].update(info)
+        
+        # Load metrics if available
+        if os.path.exists(metrics_file):
+            with open(metrics_file, 'r') as f:
+                metrics = json.load(f)
+                model_data['metrics'] = metrics
+        
+        # Check for training artifacts
+        artifacts_dir = os.path.join(models_dir, model_id, 'artifacts')
+        if os.path.exists(artifacts_dir):
+            training_files = {}
+            for file in os.listdir(artifacts_dir):
+                file_path = os.path.join(artifacts_dir, file)
+                if os.path.isfile(file_path):
+                    # Create relative URL for the artifact
+                    training_files[file] = f'/models/{model_id}/artifacts/{file}'
+            
+            model_data['training_files'] = training_files
+        
+        # Add args.yaml if available
+        if os.path.exists(args_file):
+            model_data['args_file'] = f'/models/{model_id}/args.yaml'
+        
+        return jsonify(model_data)
+    except Exception as e:
+        app.logger.error(f"Error getting model details: {str(e)}")
+        return jsonify({'error': 'Error getting model details'}), 500
+
 if __name__ == '__main__':
     # Create necessary directories if they don't exist
     os.makedirs('static/uploads', exist_ok=True)
