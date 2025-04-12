@@ -74,6 +74,15 @@
     .uploaded-image {
         max-height: 300px;
     }
+    .model-toggle {
+        margin-bottom: 1.5rem;
+    }
+    .model-toggle .btn {
+        width: 100%;
+    }
+    .keypoints-info {
+        margin-top: 1rem;
+    }
 </style>
 {% endblock %}
 
@@ -94,7 +103,22 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button" role="tab">Take Photo</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pose-tab" data-bs-toggle="tab" data-bs-target="#pose" type="button" role="tab">Pose Estimation</button>
+            </li>
         </ul>
+        
+        <!-- Model Selection -->
+        <div class="model-toggle mt-3 mb-2" id="modelToggle">
+            <div class="row">
+                <div class="col-6">
+                    <button class="btn btn-primary active" id="segmentationModelBtn" type="button">Segmentation</button>
+                </div>
+                <div class="col-6">
+                    <button class="btn btn-outline-primary" id="poseModelBtn" type="button">Pose Estimation</button>
+                </div>
+            </div>
+        </div>
         
         <div class="tab-content" id="inputTabsContent">
             <!-- Upload Image Tab -->
@@ -148,6 +172,29 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Pose Estimation Tab -->
+            <div class="tab-pane fade" id="pose" role="tabpanel">
+                <div class="my-4">
+                    <div class="camera-container">
+                        <video id="poseCameraFeed" class="camera-feed" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <select class="form-select w-auto" id="poseCameraSelect">
+                                <option value="0">Default Camera</option>
+                            </select>
+                            <button class="btn btn-primary" id="startPoseCameraBtn">
+                                <i class="bi bi-camera-video"></i> Start Camera
+                            </button>
+                            <button class="btn btn-success" id="takePosePictureBtn" disabled>
+                                <i class="bi bi-camera"></i> Take Picture
+                            </button>
+                        </div>
+                        <div class="camera-snapshot" id="poseCameraSnapshot">
+                            <img id="poseCapturedImage" class="img-fluid rounded shadow" alt="Captured Image for Pose Estimation">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Confidence Threshold -->
@@ -158,8 +205,8 @@
         
         <!-- Process Button -->
         <div class="d-grid">
-            <button id="segmentButton" class="btn btn-primary btn-lg">
-                <i class="bi bi-layers"></i> Segment Image
+            <button id="processButton" class="btn btn-primary btn-lg">
+                <i class="bi bi-layers"></i> <span id="processButtonText">Segment Image</span>
             </button>
         </div>
         
@@ -173,15 +220,16 @@
         
         <!-- Results -->
         <div class="result-container" id="resultContainer">
-            <h3>Segmentation Results</h3>
+            <h3>Results</h3>
             <div class="row">
                 <div class="col-md-8">
                     <div class="text-center">
-                        <img id="resultImage" class="img-fluid rounded shadow" alt="Segmentation Result">
+                        <img id="resultImage" class="img-fluid rounded shadow" alt="Result Image">
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="card">
+                    <!-- Segmentation Results -->
+                    <div class="card" id="segmentationResults">
                         <div class="card-header">
                             <h5 class="card-title mb-0">Segmented Objects</h5>
                         </div>
@@ -195,9 +243,22 @@
                                             <th>Confidence</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="segmentationResults">
+                                    <tbody id="segmentationResultsTable">
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pose Estimation Results -->
+                    <div class="card d-none" id="poseResults">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Detected Poses</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="keypoints-info">
+                                <p>People detected: <span class="badge bg-primary" id="totalPeople">0</span></p>
+                                <p>Total keypoints: <span class="badge bg-success" id="totalKeypoints">0</span></p>
                             </div>
                         </div>
                     </div>
@@ -221,14 +282,19 @@
         const imageUrlInput = document.getElementById('imageUrl');
         const confidenceSlider = document.getElementById('confidenceSlider');
         const confidenceValue = document.getElementById('confidenceValue');
-        const segmentButton = document.getElementById('segmentButton');
+        const processButton = document.getElementById('processButton');
+        const processButtonText = document.getElementById('processButtonText');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const resultContainer = document.getElementById('resultContainer');
         const resultImage = document.getElementById('resultImage');
         const totalSegments = document.getElementById('totalSegments');
+        const segmentationResultsTable = document.getElementById('segmentationResultsTable');
         const segmentationResults = document.getElementById('segmentationResults');
+        const poseResults = document.getElementById('poseResults');
+        const totalPeople = document.getElementById('totalPeople');
+        const totalKeypoints = document.getElementById('totalKeypoints');
         
-        // Camera elements
+        // Camera elements - segmentation
         const cameraFeed = document.getElementById('cameraFeed');
         const cameraSelect = document.getElementById('cameraSelect');
         const startCameraBtn = document.getElementById('startCameraBtn');
@@ -236,11 +302,57 @@
         const cameraSnapshot = document.getElementById('cameraSnapshot');
         const capturedImage = document.getElementById('capturedImage');
         
+        // Camera elements - pose estimation
+        const poseCameraFeed = document.getElementById('poseCameraFeed');
+        const poseCameraSelect = document.getElementById('poseCameraSelect');
+        const startPoseCameraBtn = document.getElementById('startPoseCameraBtn');
+        const takePosePictureBtn = document.getElementById('takePosePictureBtn');
+        const poseCameraSnapshot = document.getElementById('poseCameraSnapshot');
+        const poseCapturedImage = document.getElementById('poseCapturedImage');
+        
+        // Model toggle buttons
+        const segmentationModelBtn = document.getElementById('segmentationModelBtn');
+        const poseModelBtn = document.getElementById('poseModelBtn');
+        
         // Variables
         let currentFile = null;
         let currentTab = 'upload';
         let stream = null;
+        let poseStream = null;
         let capturedImageData = null;
+        let poseCapturedImageData = null;
+        let currentModel = 'segmentation'; // Default model type
+        
+        // Toggle model type
+        segmentationModelBtn.addEventListener('click', () => {
+            currentModel = 'segmentation';
+            segmentationModelBtn.classList.add('active');
+            segmentationModelBtn.classList.remove('btn-outline-primary');
+            segmentationModelBtn.classList.add('btn-primary');
+            poseModelBtn.classList.remove('active');
+            poseModelBtn.classList.add('btn-outline-primary');
+            poseModelBtn.classList.remove('btn-primary');
+            processButtonText.textContent = 'Segment Image';
+            
+            // Update UI to show relevant results section
+            segmentationResults.classList.remove('d-none');
+            poseResults.classList.add('d-none');
+        });
+        
+        poseModelBtn.addEventListener('click', () => {
+            currentModel = 'pose';
+            poseModelBtn.classList.add('active');
+            poseModelBtn.classList.remove('btn-outline-primary');
+            poseModelBtn.classList.add('btn-primary');
+            segmentationModelBtn.classList.remove('active');
+            segmentationModelBtn.classList.add('btn-outline-primary');
+            segmentationModelBtn.classList.remove('btn-primary');
+            processButtonText.textContent = 'Detect Poses';
+            
+            // Update UI to show relevant results section
+            segmentationResults.classList.add('d-none');
+            poseResults.classList.remove('d-none');
+        });
         
         // Event: Browse button clicked
         browseButton.addEventListener('click', () => {
@@ -250,6 +362,11 @@
         // Event: Tab changed
         $('#inputTabs button').on('shown.bs.tab', function (e) {
             currentTab = e.target.id.split('-')[0];
+            
+            // If switching to pose tab, set model to pose
+            if (currentTab === 'pose') {
+                poseModelBtn.click();
+            }
         });
         
         // Event: File selected
@@ -297,7 +414,7 @@
             confidenceValue.textContent = confidenceSlider.value;
         });
         
-        // Camera related events
+        // Camera functions for segmentation tab
         startCameraBtn.addEventListener('click', async () => {
             if (stream) {
                 // Stop camera if already streaming
@@ -379,6 +496,88 @@
             }
         }
         
+        // Camera functions for pose estimation tab
+        startPoseCameraBtn.addEventListener('click', async () => {
+            if (poseStream) {
+                // Stop camera if already streaming
+                stopPoseCamera();
+                startPoseCameraBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+                takePosePictureBtn.disabled = true;
+                return;
+            }
+            
+            try {
+                // Enumerate camera devices
+                if (poseCameraSelect.options.length <= 1) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    if (videoDevices.length > 0) {
+                        poseCameraSelect.innerHTML = ''; // Clear options
+                        videoDevices.forEach((device, index) => {
+                            const option = document.createElement('option');
+                            option.value = device.deviceId;
+                            option.text = device.label || `Camera ${index + 1}`;
+                            poseCameraSelect.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Get selected camera
+                const constraints = {
+                    video: {
+                        deviceId: poseCameraSelect.value !== '0' ? {exact: poseCameraSelect.value} : undefined,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                // Start camera stream
+                poseStream = await navigator.mediaDevices.getUserMedia(constraints);
+                poseCameraFeed.srcObject = poseStream;
+                startPoseCameraBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Camera';
+                takePosePictureBtn.disabled = false;
+                poseCameraSnapshot.style.display = 'none';
+                poseCapturedImageData = null;
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                alert('Could not access camera: ' + error.message);
+            }
+        });
+        
+        poseCameraSelect.addEventListener('change', () => {
+            if (poseStream) {
+                stopPoseCamera();
+                startPoseCameraBtn.click(); // Restart with new camera
+            }
+        });
+        
+        takePosePictureBtn.addEventListener('click', () => {
+            if (!poseStream) return;
+            
+            // Create canvas to capture image from video
+            const canvas = document.createElement('canvas');
+            canvas.width = poseCameraFeed.videoWidth;
+            canvas.height = poseCameraFeed.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw video frame to canvas
+            ctx.drawImage(poseCameraFeed, 0, 0, canvas.width, canvas.height);
+            
+            // Get data URL and display captured image
+            poseCapturedImageData = canvas.toDataURL('image/jpeg');
+            poseCapturedImage.src = poseCapturedImageData;
+            poseCameraSnapshot.style.display = 'block';
+        });
+        
+        function stopPoseCamera() {
+            if (poseStream) {
+                poseStream.getTracks().forEach(track => track.stop());
+                poseStream = null;
+                poseCameraFeed.srcObject = null;
+            }
+        }
+        
         // Function to convert data URL to Blob
         function dataURLtoBlob(dataURL) {
             const parts = dataURL.split(';base64,');
@@ -411,9 +610,9 @@
             }
         }
         
-        // Event: Segment button clicked
-        segmentButton.addEventListener('click', () => {
-            // Validate inputs
+        // Event: Process button clicked
+        processButton.addEventListener('click', () => {
+            // Validate inputs based on current tab
             if (currentTab === 'upload' && !currentFile) {
                 alert('Please upload an image first.');
                 return;
@@ -429,15 +628,21 @@
                 return;
             }
             
+            if (currentTab === 'pose' && !poseCapturedImageData) {
+                alert('Please take a picture first in the Pose Estimation tab.');
+                return;
+            }
+            
             // Show loading spinner
             loadingSpinner.style.display = 'block';
             resultContainer.style.display = 'none';
             
             // Prepare form data
             const formData = new FormData();
-            formData.append('model_type', 'segmentation');
+            formData.append('model_type', currentModel);
             formData.append('confidence', confidenceSlider.value);
             
+            // Add image based on current tab
             if (currentTab === 'upload') {
                 formData.append('image', currentFile);
             } else if (currentTab === 'url') {
@@ -446,6 +651,10 @@
                 // Convert data URL to Blob and append to form
                 const imageBlob = dataURLtoBlob(capturedImageData);
                 formData.append('image', imageBlob, 'camera_capture.jpg');
+            } else if (currentTab === 'pose') {
+                // Convert data URL to Blob and append to form
+                const imageBlob = dataURLtoBlob(poseCapturedImageData);
+                formData.append('image', imageBlob, 'pose_capture.jpg');
             }
             
             // Send request to server
@@ -463,18 +672,46 @@
                     resultContainer.style.display = 'block';
                     resultImage.src = data.result_image;
                     
-                    // Update segmentation results
-                    segmentationResults.innerHTML = '';
-                    totalSegments.textContent = data.result_data.length;
-                    
-                    data.result_data.forEach(obj => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${obj.class}</td>
-                            <td>${(obj.confidence * 100).toFixed(0)}%</td>
-                        `;
-                        segmentationResults.appendChild(row);
-                    });
+                    // Update results based on current model
+                    if (currentModel === 'segmentation') {
+                        // Show segmentation results section
+                        segmentationResults.classList.remove('d-none');
+                        poseResults.classList.add('d-none');
+                        
+                        // Update segmentation results
+                        segmentationResultsTable.innerHTML = '';
+                        totalSegments.textContent = data.result_data.length;
+                        
+                        data.result_data.forEach(obj => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${obj.class}</td>
+                                <td>${(obj.confidence * 100).toFixed(0)}%</td>
+                            `;
+                            segmentationResultsTable.appendChild(row);
+                        });
+                    } else if (currentModel === 'pose') {
+                        // Show pose results section
+                        segmentationResults.classList.add('d-none');
+                        poseResults.classList.remove('d-none');
+                        
+                        // Update pose results
+                        totalPeople.textContent = data.result_data.length;
+                        
+                        // Count total keypoints (assume each person has 17 keypoints max)
+                        let keypointCount = 0;
+                        data.result_data.forEach(person => {
+                            // Each person has keypoints array, count non-zero values
+                            if (person.keypoints) {
+                                // Flatten array and count non-zero entries
+                                const flatKeypoints = person.keypoints.flat();
+                                const validKeypoints = flatKeypoints.filter(val => val > 0);
+                                keypointCount += Math.floor(validKeypoints.length / 3); // x,y,confidence for each keypoint
+                            }
+                        });
+                        
+                        totalKeypoints.textContent = keypointCount;
+                    }
                 } else {
                     alert('Error: ' + (data.error || 'Failed to process image'));
                 }
@@ -488,6 +725,7 @@
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             stopCamera();
+            stopPoseCamera();
         });
     });
 </script>
