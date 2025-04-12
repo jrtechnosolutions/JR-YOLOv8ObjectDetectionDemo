@@ -44,7 +44,6 @@ camera = None
 camera_active = False
 global_frame = None
 training_thread = None
-global is_training
 is_training = False
 training_status = {"progress": 0, "message": "", "complete": False}
 
@@ -300,11 +299,11 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             results = model.train(**train_args)
             print(f"Training completed successfully. Results: {results}")
         except Exception as train_err:
+            global is_training
             error_message = f"Training error: {str(train_err)}"
             print(f"ERROR during training: {error_message}")
             training_status["message"] = error_message
             training_status["complete"] = True
-            global is_training
             is_training = False
             return
         
