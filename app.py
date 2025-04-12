@@ -1501,6 +1501,11 @@ def api_model_details():
 def page_not_found(e):
     return render_template('404.html'), 404
 
+@app.route('/direct_classes')
+def direct_classes():
+    """Muestra una página estática con las clases del modelo, sin JavaScript"""
+    return render_template('direct_classes.html')
+
 if __name__ == '__main__':
     # Create necessary directories if they don't exist
     os.makedirs('static/uploads', exist_ok=True)

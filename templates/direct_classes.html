@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Clases del Modelo{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Clases del Modelo</h1>
+            <p class="lead">Esta página muestra directamente las clases sin JavaScript.</p>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card mb-4 h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h3>Clase 0</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">class0</h5>
+                            <p class="card-text">
+                                Esta clase representa objetos de tipo <strong>class0</strong> que el modelo puede identificar.
+                            </p>
+                            <span class="badge bg-primary mb-2">ID: 0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card mb-4 h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h3>Clase 1</h3>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">class1</h5>
+                            <p class="card-text">
+                                Esta clase representa objetos de tipo <strong>class1</strong> que el modelo puede identificar.
+                            </p>
+                            <span class="badge bg-primary mb-2">ID: 1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">Volver al Inicio</a>
+                <a href="{{ url_for('model_details', model_id='data_20250412_223555') }}" class="btn btn-primary">Ver Detalles del Modelo</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
