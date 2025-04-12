@@ -44,6 +44,7 @@ camera = None
 camera_active = False
 global_frame = None
 training_thread = None
+global is_training
 is_training = False
 training_status = {"progress": 0, "message": "", "complete": False}
 
@@ -261,7 +262,13 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             'classification': 'yolov8n-cls.pt'
         }
         
-        model = YOLO(model_map[model_type])
+        # Create absolute path to the model file
+        model_file = os.path.join(app.config['MODELS_FOLDER'], model_map[model_type])
+        if not os.path.exists(model_file):
+            # Download if not exists
+            model = YOLO(model_map[model_type])
+        else:
+            model = YOLO(model_file)
         
         # Start training
         training_status["message"] = f"Training started. Model: {model_type}, Epochs: {epochs}"
@@ -276,15 +283,30 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
         # Register callback
         model.add_callback("on_train_epoch_end", on_train_epoch_end)
         
-        # Start training
-        results = model.train(
-            data=yaml_path,
-            epochs=epochs,
-            batch=batch_size,
-            imgsz=img_size,
-            project=app.config['MODELS_FOLDER'],
-            name=f"{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
+        # Training arguments
+        train_args = {
+            'data': yaml_path,
+            'epochs': epochs,
+            'batch': batch_size,
+            'imgsz': img_size,
+            'project': app.config['MODELS_FOLDER'],
+            'name': f"{dataset_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        }
+        
+        print(f"Starting training with arguments: {train_args}")
+        
+        # Start training with proper error handling
+        try:
+            results = model.train(**train_args)
+            print(f"Training completed successfully. Results: {results}")
+        except Exception as train_err:
+            error_message = f"Training error: {str(train_err)}"
+            print(f"ERROR during training: {error_message}")
+            training_status["message"] = error_message
+            training_status["complete"] = True
+            global is_training
+            is_training = False
+            return
         
         # Save the trained model
         model_save_path = os.path.join(
