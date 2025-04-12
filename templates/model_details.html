@@ -76,6 +76,11 @@
                     <span class="badge bg-secondary" id="modelSize">5.95 MB</span>
                     <span class="badge bg-success" id="modelTask">Object Detection</span>
                 </p>
+                <!-- Add debug information during development -->
+                <div id="debugInfo" class="alert alert-info small d-none">
+                    <h6>Debug Information:</h6>
+                    <pre id="debugData"></pre>
+                </div>
             </div>
         </div>
     </div>
@@ -181,10 +186,73 @@
             <!-- Classes Section -->
             <div class="model-section">
                 <h2><i class="bi bi-tags"></i> Detection Classes</h2>
-                <p>This model has been trained to detect the following classes of objects:</p>
+                <p>The classes this model can detect are listed below. Each class has a unique ID that is used in the model's output.</p>
                 
-                <div class="row mb-4" id="classesContainer">
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Understanding Classes</h5>
+                            </div>
+                            <div class="card-body">
+                                <p>Each class represents a type of object that the model is trained to detect. When the model processes an image, it will:</p>
+                                <ul>
+                                    <li><strong>Identify</strong> objects belonging to these classes</li>
+                                    <li><strong>Locate</strong> them with bounding boxes</li>
+                                    <li><strong>Assign</strong> a confidence score to each detection</li>
+                                </ul>
+                                <p class="mb-0">The class IDs are important when working with the model programmatically, as they are used in the detection results.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h5 class="card-title mb-0"><i class="bi bi-bar-chart"></i> Class Statistics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="classesStats" class="text-center">
+                                    <!-- Will be populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add debug information during development -->
+                <div id="debugInfo" class="alert alert-info small d-none">
+                    <h6>Debug Information:</h6>
+                    <pre id="debugData"></pre>
+                </div>
+                
+                <div class="row" id="classesContainer">
                     <!-- Will be populated dynamically -->
+                </div>
+                
+                <h5 class="mt-4">Using Classes in Code</h5>
+                <div class="code-block position-relative">
+                    <button class="btn btn-sm btn-outline-secondary copy-btn" onclick="copyToClipboard('pythonCode')" title="Copy code to clipboard">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                    <pre id="pythonCode">
+# Python code to use this model with Ultralytics YOLO
+from ultralytics import YOLO
+
+# Load the model
+model = YOLO('path/to/model.pt')
+
+# Run inference on an image
+results = model('path/to/image.jpg')
+
+# Process results
+for r in results:
+    boxes = r.boxes  # Bounding boxes
+    # Print class and confidence for each detection
+    for box in boxes:
+        cls = int(box.cls[0])
+        conf = float(box.conf[0])
+        print(f"Class: {model.names[cls]}, Confidence: {conf:.2f}")
+</pre>
                 </div>
             </div>
             

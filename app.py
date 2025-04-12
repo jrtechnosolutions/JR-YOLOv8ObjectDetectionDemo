@@ -1375,14 +1375,42 @@ def api_model_details():
         if 'classes' not in model_data['model_info'] and os.path.exists(model_path):
             try:
                 from ultralytics import YOLO
+                app.logger.info(f"Loading model from {model_path} to extract class names")
                 model = YOLO(model_path)
+                
+                # Check all possible locations where class names might be stored in YOLO model
+                classes_dict = None
+                
+                # Check model.names (most common location)
                 if hasattr(model, 'names') and model.names:
+                    app.logger.info(f"Found classes in model.names: {model.names}")
+                    classes_dict = model.names
+                
+                # Check model.model.names (sometimes in this location)
+                elif hasattr(model, 'model') and hasattr(model.model, 'names') and model.model.names:
+                    app.logger.info(f"Found classes in model.model.names: {model.model.names}")
+                    classes_dict = model.model.names
+                
+                # Check for names in the task-specific predictor
+                elif hasattr(model, 'predictor') and hasattr(model.predictor, 'names') and model.predictor.names:
+                    app.logger.info(f"Found classes in model.predictor.names: {model.predictor.names}")
+                    classes_dict = model.predictor.names
+                
+                # Process classes based on the type (dict or list)
+                if classes_dict is not None:
+                    # Convert to dict if it's a list
+                    if isinstance(classes_dict, list):
+                        classes_dict = {i: name for i, name in enumerate(classes_dict)}
+                    
                     # Add class names to model_info
-                    model_data['model_info']['classes'] = model.names
-                    app.logger.info(f"Loaded classes from model file: {model.names}")
+                    model_data['model_info']['classes'] = classes_dict
+                    app.logger.info(f"Added classes to model_data: {classes_dict}")
+                else:
+                    app.logger.warning(f"No class names found in model {model_id}")
             except Exception as e:
                 app.logger.error(f"Error loading model to get class names: {str(e)}")
                 # Add default COCO classes as fallback if model loading fails
+                app.logger.info("Using default COCO classes as fallback")
                 model_data['model_info']['classes'] = {
                     0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane',
                     5: 'bus', 6: 'train', 7: 'truck', 8: 'boat', 9: 'traffic light',

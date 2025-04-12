@@ -123,24 +123,62 @@ function renderModelDetails(model) {
         metricsDiv.appendChild(metricDiv);
     });
     
+    // Add debug information
+    if (model.model_info || model.classes) {
+        const debugInfo = document.getElementById('debugInfo');
+        const debugData = document.getElementById('debugData');
+        
+        // Format debug data in a readable way
+        const debugObject = {
+            model_name: model.name,
+            has_model_info: !!model.model_info,
+            has_classes_in_model_info: !!(model.model_info && model.model_info.classes),
+            has_classes_direct: !!model.classes,
+            has_names_in_model_info: !!(model.model_info && model.model_info.names),
+            class_count_in_model_info: model.model_info && model.model_info.classes ? Object.keys(model.model_info.classes).length : 0,
+            class_count_direct: model.classes ? Object.keys(model.classes).length : 0,
+            class_count_in_names: model.model_info && model.model_info.names ? Object.keys(model.model_info.names).length : 0
+        };
+        
+        debugData.textContent = JSON.stringify(debugObject, null, 2);
+        debugInfo.classList.remove('d-none'); // Make debug info visible during development
+    }
+    
     // Classes section
     const classesContainer = document.getElementById('classesContainer');
     classesContainer.innerHTML = '';
     
-    // Verificar la estructura del objeto model y sus datos
-    console.log("Model data for classes:", model);
-    console.log("Model info:", model.model_info);
-    console.log("Classes data:", model.model_info?.classes);
+    // Log comprehensive information about the model structure
+    console.log("Model data structure:", model);
+    console.log("Model info availability:", !!model.model_info);
+    console.log("Classes data locations:", {
+        "model.model_info.classes": model.model_info?.classes,
+        "model.classes": model.classes,
+        "model.model_info.names": model.model_info?.names
+    });
     
-    // Asegurarnos de tener datos de clases, incluso si no están en la ubicación esperada
+    // Asegurarnos de tener datos de clases, buscando en todas las posibles ubicaciones
     let classesData = null;
     
-    if (model.model_info && model.model_info.classes) {
+    if (model.model_info && model.model_info.classes && Object.keys(model.model_info.classes).length > 0) {
         classesData = model.model_info.classes;
-    } else if (model.classes) {
+        console.log("Using classes from model_info.classes");
+    } else if (model.classes && Object.keys(model.classes).length > 0) {
         classesData = model.classes;
-    } else if (model.model_info && model.model_info.names) {
+        console.log("Using classes from direct model.classes");
+    } else if (model.model_info && model.model_info.names && Object.keys(model.model_info.names).length > 0) {
         classesData = model.model_info.names;
+        console.log("Using classes from model_info.names");
+    }
+    
+    // Convert classesData to standard format if it's an array
+    if (Array.isArray(classesData)) {
+        console.log("Converting array classes to object format");
+        const tempClassesData = {};
+        classesData.forEach((className, index) => {
+            tempClassesData[index] = className;
+        });
+        classesData = tempClassesData;
     }
     
     if (classesData && Object.keys(classesData).length > 0) {
@@ -155,8 +193,40 @@ function renderModelDetails(model) {
         `;
         classesContainer.appendChild(introDiv);
         
+        // Update class statistics
+        const classesStats = document.getElementById('classesStats');
+        if (classesStats) {
+            classesStats.innerHTML = `
+                <h3 class="display-4">${classCount}</h3>
+                <p class="text-muted">Detectable ${classCount === 1 ? 'Class' : 'Classes'}</p>
+                <div class="progress mt-3" style="height: 25px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 100%;" 
+                         aria-valuenow="${classCount}" aria-valuemin="0" aria-valuemax="${classCount}">
+                        ${classCount} ${classCount === 1 ? 'Class' : 'Classes'}
+                    </div>
+                </div>
+                <p class="mt-3 mb-0 small text-muted">
+                    <i class="bi bi-info-circle"></i> ${classCount >= 80 ? 'This model can detect a wide variety of objects' : 
+                       classCount >= 20 ? 'This model can detect a good range of common objects' : 
+                       'This model is specialized for specific object classes'}
+                </p>
+            `;
+        }
+        
+        // Sort classes by ID (if they are numeric)
+        const sortedEntries = Object.entries(classesData).sort((a, b) => {
+            const idA = parseInt(a[0]);
+            const idB = parseInt(b[0]);
+            // If both are valid numbers, sort numerically
+            if (!isNaN(idA) && !isNaN(idB)) {
+                return idA - idB;
+            }
+            // Otherwise sort by string
+            return a[0].localeCompare(b[0]);
+        });
+        
         // Mostrar cada clase con su ID y nombre
-        Object.entries(classesData).forEach(([classId, className]) => {
+        sortedEntries.forEach(([classId, className]) => {
             const classCol = document.createElement('div');
             classCol.className = 'col-lg-3 col-md-4 col-sm-6 mb-3';
             classCol.innerHTML = `
