@@ -39,6 +39,41 @@
     .segmentation-table {
         margin-top: 1rem;
     }
+    .camera-container {
+        width: 100%;
+        margin: 0 auto;
+        text-align: center;
+        position: relative;
+    }
+    .camera-feed {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa;
+    }
+    .camera-controls {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .camera-snapshot {
+        display: none;
+        margin-top: 1rem;
+    }
+    .camera-snapshot img {
+        max-width: 100%;
+        border-radius: 8px;
+        border: 1px solid #0d6efd;
+    }
+    .uploaded-image-container {
+        display: none;
+        text-align: center;
+    }
+    .uploaded-image {
+        max-height: 300px;
+    }
 </style>
 {% endblock %}
 
@@ -55,6 +90,9 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#url" type="button" role="tab">Image URL</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button" role="tab">Take Photo</button>
             </li>
         </ul>
         
@@ -85,6 +123,29 @@
                 <div class="my-4">
                     <label for="imageUrl" class="form-label">Image URL</label>
                     <input type="url" class="form-control" id="imageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+            </div>
+
+            <!-- Camera Tab -->
+            <div class="tab-pane fade" id="camera" role="tabpanel">
+                <div class="my-4">
+                    <div class="camera-container">
+                        <video id="cameraFeed" class="camera-feed" autoplay playsinline></video>
+                        <div class="camera-controls">
+                            <select class="form-select w-auto" id="cameraSelect">
+                                <option value="0">Default Camera</option>
+                            </select>
+                            <button class="btn btn-primary" id="startCameraBtn">
+                                <i class="bi bi-camera-video"></i> Start Camera
+                            </button>
+                            <button class="btn btn-success" id="takePictureBtn" disabled>
+                                <i class="bi bi-camera"></i> Take Picture
+                            </button>
+                        </div>
+                        <div class="camera-snapshot" id="cameraSnapshot">
+                            <img id="capturedImage" class="img-fluid rounded shadow" alt="Captured Image">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -125,11 +186,9 @@
                             <h5 class="card-title mb-0">Segmented Objects</h5>
                         </div>
                         <div class="card-body">
-                            <div id="segmentationStats">
-                                <p>Total segments: <span id="totalSegments">0</span></p>
-                            </div>
-                            <div class="table-responsive segmentation-table">
-                                <table class="table table-sm">
+                            <p>Total objects: <span class="badge bg-primary" id="totalSegments">0</span></p>
+                            <div class="table-responsive">
+                                <table class="table table-sm segmentation-table">
                                     <thead>
                                         <tr>
                                             <th>Class</th>
@@ -137,7 +196,6 @@
                                         </tr>
                                     </thead>
                                     <tbody id="segmentationResults">
-                                        <!-- Results will be populated here -->
                                     </tbody>
                                 </table>
                             </div>
@@ -167,12 +225,22 @@
         const loadingSpinner = document.getElementById('loadingSpinner');
         const resultContainer = document.getElementById('resultContainer');
         const resultImage = document.getElementById('resultImage');
-        const segmentationResults = document.getElementById('segmentationResults');
         const totalSegments = document.getElementById('totalSegments');
+        const segmentationResults = document.getElementById('segmentationResults');
+        
+        // Camera elements
+        const cameraFeed = document.getElementById('cameraFeed');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const takePictureBtn = document.getElementById('takePictureBtn');
+        const cameraSnapshot = document.getElementById('cameraSnapshot');
+        const capturedImage = document.getElementById('capturedImage');
         
         // Variables
         let currentFile = null;
         let currentTab = 'upload';
+        let stream = null;
+        let capturedImageData = null;
         
         // Event: Browse button clicked
         browseButton.addEventListener('click', () => {
@@ -229,6 +297,103 @@
             confidenceValue.textContent = confidenceSlider.value;
         });
         
+        // Camera related events
+        startCameraBtn.addEventListener('click', async () => {
+            if (stream) {
+                // Stop camera if already streaming
+                stopCamera();
+                startCameraBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+                takePictureBtn.disabled = true;
+                return;
+            }
+            
+            try {
+                // Enumerate camera devices
+                if (cameraSelect.options.length <= 1) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    if (videoDevices.length > 0) {
+                        cameraSelect.innerHTML = ''; // Clear options
+                        videoDevices.forEach((device, index) => {
+                            const option = document.createElement('option');
+                            option.value = device.deviceId;
+                            option.text = device.label || `Camera ${index + 1}`;
+                            cameraSelect.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Get selected camera
+                const constraints = {
+                    video: {
+                        deviceId: cameraSelect.value !== '0' ? {exact: cameraSelect.value} : undefined,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                // Start camera stream
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                cameraFeed.srcObject = stream;
+                startCameraBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Camera';
+                takePictureBtn.disabled = false;
+                cameraSnapshot.style.display = 'none';
+                capturedImageData = null;
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                alert('Could not access camera: ' + error.message);
+            }
+        });
+        
+        cameraSelect.addEventListener('change', () => {
+            if (stream) {
+                stopCamera();
+                startCameraBtn.click(); // Restart with new camera
+            }
+        });
+        
+        takePictureBtn.addEventListener('click', () => {
+            if (!stream) return;
+            
+            // Create canvas to capture image from video
+            const canvas = document.createElement('canvas');
+            canvas.width = cameraFeed.videoWidth;
+            canvas.height = cameraFeed.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw video frame to canvas
+            ctx.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+            
+            // Get data URL and display captured image
+            capturedImageData = canvas.toDataURL('image/jpeg');
+            capturedImage.src = capturedImageData;
+            cameraSnapshot.style.display = 'block';
+        });
+        
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                cameraFeed.srcObject = null;
+            }
+        }
+        
+        // Function to convert data URL to Blob
+        function dataURLtoBlob(dataURL) {
+            const parts = dataURL.split(';base64,');
+            const contentType = parts[0].split(':')[1];
+            const raw = window.atob(parts[1]);
+            const rawLength = raw.length;
+            const uInt8Array = new Uint8Array(rawLength);
+            
+            for (let i = 0; i < rawLength; ++i) {
+                uInt8Array[i] = raw.charCodeAt(i);
+            }
+            
+            return new Blob([uInt8Array], { type: contentType });
+        }
+        
         // Function: Handle file upload
         function handleFileUpload(file) {
             if (file && file.type.startsWith('image/')) {
@@ -259,6 +424,11 @@
                 return;
             }
             
+            if (currentTab === 'camera' && !capturedImageData) {
+                alert('Please take a picture first.');
+                return;
+            }
+            
             // Show loading spinner
             loadingSpinner.style.display = 'block';
             resultContainer.style.display = 'none';
@@ -270,8 +440,12 @@
             
             if (currentTab === 'upload') {
                 formData.append('image', currentFile);
-            } else {
+            } else if (currentTab === 'url') {
                 formData.append('url', imageUrlInput.value);
+            } else if (currentTab === 'camera') {
+                // Convert data URL to Blob and append to form
+                const imageBlob = dataURLtoBlob(capturedImageData);
+                formData.append('image', imageBlob, 'camera_capture.jpg');
             }
             
             // Send request to server
@@ -309,6 +483,11 @@
                 loadingSpinner.style.display = 'none';
                 alert('Error: ' + error.message);
             });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
         });
     });
 </script>
