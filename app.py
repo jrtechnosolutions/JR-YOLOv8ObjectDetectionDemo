@@ -180,30 +180,78 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
     global training_status
     
     try:
-        # Create YAML configuration file for training
-        dataset_name = os.path.basename(dataset_path).split('.')[0]
-        yaml_path = os.path.join(app.config['DATASETS_FOLDER'], f"{dataset_name}.yaml")
+        # Unpack dataset_path if it contains yaml_files
+        yaml_files = []
+        if isinstance(dataset_path, tuple):
+            dataset_path, yaml_files = dataset_path
         
-        # Basic YAML configuration
-        yaml_config = {
-            'path': os.path.abspath(os.path.join(app.config['DATASETS_FOLDER'], dataset_name)),
-            'train': 'train/images',
-            'val': 'valid/images',
-            'test': 'test/images',
-            'names': {}  # Will be populated based on classes.txt if available
-        }
+        dataset_name = os.path.basename(dataset_path).split('.')[0]
+        yaml_path = os.path.join(app.config['DATASETS_FOLDER'], "data.yaml")
+        
+        # Check if valid existing YAML exists and try to use it
+        existing_yaml = None
+        if yaml_files:
+            for yaml_file in yaml_files:
+                try:
+                    with open(yaml_file, 'r') as f:
+                        yaml_content = yaml.safe_load(f)
+                        if isinstance(yaml_content, dict) and 'names' in yaml_content:
+                            existing_yaml = yaml_file
+                            break
+                except Exception as e:
+                    print(f"Error reading YAML file {yaml_file}: {e}")
+        
+        # Determine class names
+        class_names = {}
         
         # Check if classes.txt exists
-        classes_path = os.path.join(app.config['DATASETS_FOLDER'], dataset_name, 'classes.txt')
+        classes_path = os.path.join(dataset_path, 'classes.txt')
         if os.path.exists(classes_path):
             with open(classes_path, 'r') as f:
                 classes = [line.strip() for line in f.readlines()]
                 for i, cls in enumerate(classes):
-                    yaml_config['names'][i] = cls
+                    class_names[i] = cls
+                print(f"Found classes.txt with {len(classes)} classes: {classes}")
+        
+        # Use existing YAML if possible, otherwise create new one
+        if existing_yaml:
+            try:
+                with open(existing_yaml, 'r') as f:
+                    yaml_config = yaml.safe_load(f)
+                
+                # Update paths to absolute
+                yaml_config['path'] = os.path.abspath(dataset_path)
+                
+                # Convert relative paths to absolute if they start with ..
+                if 'train' in yaml_config and yaml_config['train'].startswith('../'):
+                    yaml_config['train'] = 'train/images'
+                if 'val' in yaml_config and yaml_config['val'].startswith('../'):
+                    yaml_config['val'] = 'valid/images'
+                if 'test' in yaml_config and yaml_config['test'].startswith('../'):
+                    yaml_config['test'] = 'test/images'
+                
+                # Keep class names from existing YAML or update with classes.txt
+                if not class_names and 'names' in yaml_config:
+                    class_names = yaml_config['names']
+                elif class_names:
+                    yaml_config['names'] = class_names
+                
+                print(f"Using modified existing YAML from {existing_yaml}")
+            except Exception as e:
+                print(f"Error processing existing YAML, creating new one: {e}")
+                yaml_config = create_default_yaml(dataset_path, class_names)
+        else:
+            yaml_config = create_default_yaml(dataset_path, class_names)
+        
+        # Verify dataset structure before training
+        verify_dataset_structure(dataset_path, yaml_config)
         
         # Write YAML file
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_config, f)
+        
+        print(f"Training config written to {yaml_path}")
+        print(f"YAML content: {yaml_config}")
         
         # Select model based on model_type
         model_map = {
@@ -257,12 +305,67 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
         training_status["onnx_path"] = onnx_path
         
     except Exception as e:
-        training_status["message"] = f"Training error: {str(e)}"
+        error_message = f"Training error: {str(e)}"
+        print(f"ERROR: {error_message}")
+        training_status["message"] = error_message
         training_status["complete"] = True
     
     finally:
         global is_training
         is_training = False
+
+def create_default_yaml(dataset_path, class_names):
+    """Create a default YAML configuration"""
+    return {
+        'path': os.path.abspath(dataset_path),
+        'train': 'train/images',
+        'val': 'valid/images',
+        'test': 'test/images',
+        'names': class_names if class_names else {'0': 'class0', '1': 'class1'}
+    }
+
+def verify_dataset_structure(dataset_path, yaml_config):
+    """Verify dataset structure and log useful debug information"""
+    print(f"Verifying dataset structure at {dataset_path}")
+    
+    # Check train directory
+    train_path = os.path.join(dataset_path, 'train', 'images')
+    if not os.path.exists(train_path):
+        print(f"WARNING: Train images directory doesn't exist: {train_path}")
+    else:
+        train_images = [f for f in os.listdir(train_path) if f.endswith(('.jpg', '.jpeg', '.png'))]
+        print(f"Found {len(train_images)} images in train directory")
+        
+        # Check labels
+        train_labels = os.path.join(dataset_path, 'train', 'labels')
+        if not os.path.exists(train_labels):
+            print(f"WARNING: Train labels directory doesn't exist: {train_labels}")
+        else:
+            label_files = [f for f in os.listdir(train_labels) if f.endswith('.txt')]
+            print(f"Found {len(label_files)} label files in train directory")
+            
+            # Check if some images don't have labels
+            train_img_bases = {os.path.splitext(f)[0] for f in train_images}
+            label_bases = {os.path.splitext(f)[0] for f in label_files}
+            missing_labels = train_img_bases - label_bases
+            if missing_labels:
+                print(f"WARNING: {len(missing_labels)} train images don't have corresponding labels")
+    
+    # Check validation directory
+    valid_path = os.path.join(dataset_path, 'valid', 'images')
+    if not os.path.exists(valid_path):
+        print(f"WARNING: Validation images directory doesn't exist: {valid_path}")
+    else:
+        valid_images = [f for f in os.listdir(valid_path) if f.endswith(('.jpg', '.jpeg', '.png'))]
+        print(f"Found {len(valid_images)} images in validation directory")
+        
+        # Check labels
+        valid_labels = os.path.join(dataset_path, 'valid', 'labels')
+        if not os.path.exists(valid_labels):
+            print(f"WARNING: Validation labels directory doesn't exist: {valid_labels}")
+        else:
+            label_files = [f for f in os.listdir(valid_labels) if f.endswith('.txt')]
+            print(f"Found {len(label_files)} label files in validation directory")
 
 def extract_dataset(zip_path):
     """Extract dataset from zip file and organize it properly"""
@@ -276,13 +379,36 @@ def extract_dataset(zip_path):
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_path)
     
+    # Look for existing YAML file
+    yaml_files = []
+    for root, _, files in os.walk(extract_path):
+        for file in files:
+            if file.endswith('.yaml') or file.endswith('.yml'):
+                yaml_files.append(os.path.join(root, file))
+    
     # Check dataset structure and organize if needed
     # This handles common formats like YOLO, COCO, etc.
     required_dirs = ['train', 'valid', 'test']
     
+    # Verify if the dataset is already properly organized
+    has_proper_structure = True
+    for d in ['train', 'valid']:  # test is optional
+        img_dir = os.path.join(extract_path, d, 'images')
+        lbl_dir = os.path.join(extract_path, d, 'labels')
+        
+        if not os.path.exists(img_dir) or not os.listdir(img_dir):
+            has_proper_structure = False
+            break
+            
+        # Check if labels directory exists and has files
+        if not os.path.exists(lbl_dir) or not os.listdir(lbl_dir):
+            has_proper_structure = False
+            break
+    
     # If the dataset is already properly organized
-    if any(os.path.exists(os.path.join(extract_path, d)) for d in required_dirs):
-        return extract_path
+    if has_proper_structure:
+        print(f"Dataset has proper structure. Found train/valid dirs with images and labels.")
+        return extract_path, yaml_files
     
     # Simple auto-organization: look for annotations and images
     img_extensions = {'.jpg', '.jpeg', '.png', '.bmp'}
@@ -301,19 +427,26 @@ def extract_dataset(zip_path):
             elif ext in annotation_extensions:
                 annotation_files.append(path)
     
+    print(f"Found {len(image_files)} images and {len(annotation_files)} annotation files.")
+    
     # If we found images but no organized structure, create one
-    if image_files and not any(os.path.exists(os.path.join(extract_path, d)) for d in required_dirs):
+    if image_files and not has_proper_structure:
+        print("Reorganizing dataset structure...")
         # Create basic train/valid split (80/20)
         os.makedirs(os.path.join(extract_path, 'train', 'images'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'train', 'labels'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'valid', 'images'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'valid', 'labels'), exist_ok=True)
+        os.makedirs(os.path.join(extract_path, 'test', 'images'), exist_ok=True)
+        os.makedirs(os.path.join(extract_path, 'test', 'labels'), exist_ok=True)
         
         # Shuffle and split files
         np.random.shuffle(image_files)
-        split_idx = int(len(image_files) * 0.8)
-        train_images = image_files[:split_idx]
-        valid_images = image_files[split_idx:]
+        split_idx1 = int(len(image_files) * 0.7)  # 70% train
+        split_idx2 = int(len(image_files) * 0.9)  # 20% valid, 10% test
+        train_images = image_files[:split_idx1]
+        valid_images = image_files[split_idx1:split_idx2]
+        test_images = image_files[split_idx2:]
         
         # Copy files to appropriate locations
         for img_path in train_images:
@@ -337,8 +470,21 @@ def extract_dataset(zip_path):
                     shutil.copy(ann_path, os.path.join(extract_path, 'valid', 'labels', 
                                                     os.path.basename(ann_path)))
                     break
+        
+        for img_path in test_images:
+            shutil.copy(img_path, os.path.join(extract_path, 'test', 'images', os.path.basename(img_path)))
+            
+            # Find corresponding annotation if exists
+            base_name = os.path.splitext(os.path.basename(img_path))[0]
+            for ann_path in annotation_files:
+                if os.path.splitext(os.path.basename(ann_path))[0] == base_name:
+                    shutil.copy(ann_path, os.path.join(extract_path, 'test', 'labels', 
+                                                    os.path.basename(ann_path)))
+                    break
+        
+        print(f"Dataset reorganized: {len(train_images)} train, {len(valid_images)} valid, {len(test_images)} test images.")
     
-    return extract_path
+    return extract_path, yaml_files
 
 # Video streaming functions
 def get_video_stream(model_type, confidence=0.25):
@@ -600,7 +746,7 @@ def api_start_training():
         dataset_file.save(filepath)
         
         # Extract dataset
-        dataset_path = extract_dataset(filepath)
+        dataset_path, yaml_files = extract_dataset(filepath)
         
         # Start training
         training_thread = start_training(dataset_path, epochs, model_type, batch_size, img_size)
