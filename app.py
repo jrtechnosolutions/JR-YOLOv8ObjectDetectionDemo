@@ -279,8 +279,16 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             training_status["progress"] = int((epoch / epochs) * 100)
             training_status["message"] = f"Training: {epoch}/{epochs} epochs completed"
         
-        # Register callback
+        # Add a callback for when training completes
+        def on_train_end(trainer):
+            global training_status
+            training_status["progress"] = 100
+            training_status["message"] = "Training complete! Finalizing model..."
+            training_status["complete"] = True
+        
+        # Register callbacks
         model.add_callback("on_train_epoch_end", on_train_epoch_end)
+        model.add_callback("on_train_end", on_train_end)
         
         # Training arguments
         train_args = {
@@ -827,18 +835,24 @@ def api_training_status():
     """API endpoint to get training status"""
     global training_status
     
-    if "message" in training_status and "error" in training_status["message"].lower() and not training_status["complete"]:
-        # Handle case where UI shows error but training might have completed
-        # Look for best.pt files in models directory that might indicate successful training
-        for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
-            if "best.pt" in files and not training_status["complete"]:
-                # Found a trained model that wasn't properly registered
-                model_path = os.path.join(root, "best.pt")
-                training_status["progress"] = 100
-                training_status["message"] = f"Training complete. Model found at {model_path}"
-                training_status["complete"] = True
-                training_status["model_path"] = model_path
-                break
+    # If training shows error but we might have completed successfully
+    if "message" in training_status:
+        # Check if training completed but UI didn't update
+        if "Training complete" in training_status["message"] or training_status["complete"]:
+            training_status["progress"] = 100
+            training_status["complete"] = True
+        # Check for error but training might have completed anyway
+        elif "error" in training_status["message"].lower() and not training_status["complete"]:
+            # Look for best.pt files in models directory that might indicate successful training
+            for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
+                if "best.pt" in files:
+                    # Found a trained model that wasn't properly registered
+                    model_path = os.path.join(root, "best.pt")
+                    training_status["progress"] = 100
+                    training_status["message"] = f"Training complete. Model found at {model_path}"
+                    training_status["complete"] = True
+                    training_status["model_path"] = model_path
+                    break
     
     return jsonify(training_status)
 
