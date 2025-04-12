@@ -177,7 +177,7 @@ def start_training(dataset_path, epochs, model_type, batch_size, img_size):
 
 def run_training(dataset_path, epochs, model_type, batch_size, img_size):
     """Run YOLO training on the provided dataset"""
-    global training_status
+    global training_status, is_training
     
     try:
         # Unpack dataset_path if it contains yaml_files
@@ -299,7 +299,6 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
             results = model.train(**train_args)
             print(f"Training completed successfully. Results: {results}")
         except Exception as train_err:
-            global is_training
             error_message = f"Training error: {str(train_err)}"
             print(f"ERROR during training: {error_message}")
             training_status["message"] = error_message
@@ -363,7 +362,6 @@ def run_training(dataset_path, epochs, model_type, batch_size, img_size):
         training_status["complete"] = True
     
     finally:
-        global is_training
         is_training = False
 
 def create_default_yaml(dataset_path, class_names):
