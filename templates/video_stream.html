@@ -96,6 +96,10 @@
         margin-top: 2rem;
     }
     
+    .huggingface-notification {
+        display: none;
+    }
+    
     .nav-tabs .nav-link {
         color: #495057;
         background-color: #f8f9fa;
@@ -128,17 +132,18 @@
         <h1 class="mb-4">Video Analysis</h1>
         <p class="lead">Process video streams or upload video files using YOLO models for detection, segmentation, and pose estimation.</p>
         
-        <!-- Hugging Face Spaces notification -->
-        <div id="huggingFaceNotification" class="alert alert-info d-none" role="alert">
+        <!-- Hugging Face Spaces notification - Updated to inline alert instead of popup -->
+        <div id="huggingFaceNotification" class="alert alert-warning mb-4 huggingface-notification">
             <div class="d-flex align-items-center">
                 <div class="flex-shrink-0">
-                    <i class="bi bi-info-circle-fill fs-4 me-2"></i>
+                    <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
                 </div>
                 <div class="flex-grow-1 ms-2">
-                    <h5 class="alert-heading">Camera access not available in Hugging Face Spaces</h5>
+                    <h5 class="alert-heading">Camera streaming not available</h5>
                     <p class="mb-1">Live camera streaming is not available in cloud-hosted environments like Hugging Face Spaces due to security restrictions.</p>
-                    <hr>
-                    <p class="mb-0">Please try our video upload feature below to analyze pre-recorded videos with YOLO models.</p>
+                    <button class="btn btn-primary mt-2" id="switchToUploadTab">
+                        <i class="bi bi-file-earmark-play me-1"></i> Switch to Video Upload
+                    </button>
                 </div>
             </div>
         </div>
@@ -329,11 +334,17 @@
         // Check if running in Hugging Face Spaces
         if (window.location.hostname.includes('huggingface.co') || 
             window.location.hostname.includes('spaces')) {
-            $('#huggingFaceNotification').removeClass('d-none');
-            // Auto-switch to video upload tab since live streaming won't work
-            setTimeout(() => {
+            $('#huggingFaceNotification').show();
+            
+            // Button to switch to video upload tab
+            $('#switchToUploadTab').click(function() {
                 document.getElementById('video-processing-tab').click();
-            }, 500);
+            });
+            
+            // Disable stream controls
+            $('#startButton').prop('disabled', true);
+            $('#modelSelect').prop('disabled', true);
+            $('#confidenceSlider').prop('disabled', true);
         }
         
         // DOM elements for Live Stream
