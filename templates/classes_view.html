@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}YOLO Vision AI - Clases del Modelo {{ model_id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <h1>Clases del Modelo: {{ model_id }}</h1>
+            <p>Esta página muestra directamente las clases del modelo, sin depender de JavaScript complejo.</p>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h3>Clases Detectadas</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for class_id, class_name in classes.items() %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>Clase {{ class_id }}</strong>
+                            <span class="badge bg-primary rounded-pill">{{ class_name }}</span>
+                        </li>
+                        {% endfor %}
+                        
+                        {% if not classes %}
+                        <li class="list-group-item">
+                            <div class="alert alert-warning">
+                                No se encontraron clases para este modelo.
+                            </div>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Volver al Inicio</a>
+                <a href="{{ url_for('model_details', model_id=model_id) }}" class="btn btn-primary">Ver Detalles del Modelo</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

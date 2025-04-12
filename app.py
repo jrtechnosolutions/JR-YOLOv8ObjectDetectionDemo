@@ -1285,6 +1285,42 @@ def serve_model_file(model_dir, model_file):
     else:
         return f"Model file not found: {model_path}", 404
 
+@app.route('/model_classes/<model_id>')
+def model_classes(model_id):
+    """Mostrar directamente las clases del modelo sin depender de JavaScript"""
+    # Obtener la ruta al modelo
+    models_dir = os.path.join(app.static_folder, 'models')
+    metadata_dir = os.path.join(models_dir, model_id)
+    
+    # Buscar el archivo data.yaml a través de args.yaml
+    yaml_config_file = os.path.join(metadata_dir, 'args.yaml')
+    classes_data = {}
+    
+    if os.path.exists(yaml_config_file):
+        try:
+            import yaml
+            with open(yaml_config_file, 'r') as f:
+                yaml_config = yaml.safe_load(f)
+                
+                # Verificar si hay un archivo data.yaml referenciado
+                if 'data' in yaml_config and os.path.exists(yaml_config['data']):
+                    with open(yaml_config['data'], 'r') as data_file:
+                        data_config = yaml.safe_load(data_file)
+                        
+                        # Extraer nombres de clases de data.yaml
+                        if 'names' in data_config:
+                            classes_data = data_config['names']
+                            app.logger.info(f"Clases encontradas en data.yaml: {classes_data}")
+        except Exception as e:
+            app.logger.error(f"Error al leer archivos YAML: {str(e)}")
+    
+    # Si no encontramos clases, usamos una lista genérica
+    if not classes_data:
+        classes_data = {"0": "class0", "1": "class1"}
+        app.logger.warning(f"No se encontraron clases para el modelo {model_id}, usando clases genéricas")
+    
+    return render_template('classes_view.html', model_id=model_id, classes=classes_data)
+
 @app.route('/model/<model_id>')
 def model_details(model_id):
     """
@@ -1375,18 +1411,22 @@ def api_model_details():
                 import yaml
                 with open(args_file, 'r') as f:
                     yaml_config = yaml.safe_load(f)
-                    app.logger.info(f"Loaded YAML config for model {model_id}: {yaml_config}")
-                    
-                    # Check if there's a data.yaml file referenced
-                    if 'data' in yaml_config and os.path.exists(yaml_config['data']):
-                        with open(yaml_config['data'], 'r') as data_file:
-                            data_config = yaml.safe_load(data_file)
-                            app.logger.info(f"Loaded data config from {yaml_config['data']}: {data_config}")
-                            
-                            # Extract class names from data.yaml
-                            if 'names' in data_config:
-                                model_data['model_info']['classes'] = data_config['names']
-                                app.logger.info(f"Added class names from data.yaml: {data_config['names']}")
+                
+                # Update paths to absolute
+                yaml_config['path'] = os.path.abspath(models_dir)
+                
+                # Convert relative paths to absolute if they start with ..
+                if 'train' in yaml_config and yaml_config['train'].startswith('../'):
+                    yaml_config['train'] = 'train/images'
+                if 'val' in yaml_config and yaml_config['val'].startswith('../'):
+                    yaml_config['val'] = 'valid/images'
+                if 'test' in yaml_config and yaml_config['test'].startswith('../'):
+                    yaml_config['test'] = 'test/images'
+                
+                # Keep class names from existing YAML or update with classes.txt
+                if 'names' in yaml_config:
+                    model_data['model_info']['classes'] = yaml_config['names']
+                    app.logger.info(f"Added class names from data.yaml: {yaml_config['names']}")
             except Exception as e:
                 app.logger.error(f"Error reading YAML config: {str(e)}")
         
@@ -1456,6 +1496,10 @@ def api_model_details():
     except Exception as e:
         app.logger.error(f"Error getting model details: {str(e)}")
         return jsonify({'error': 'Error getting model details'}), 500
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
 
 if __name__ == '__main__':
     # Create necessary directories if they don't exist
