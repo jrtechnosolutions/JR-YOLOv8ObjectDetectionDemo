@@ -188,6 +188,10 @@
                 <h2><i class="bi bi-tags"></i> Detection Classes</h2>
                 <p>The classes this model can detect are listed below. Each class has a unique ID that is used in the model's output.</p>
                 
+                <div id="classesContainer" class="row">
+                    <!-- Aquí se mostrarán las clases del modelo dinámicamente -->
+                </div>
+
                 <div class="row mb-4">
                     <div class="col-md-8">
                         <div class="card">
@@ -223,10 +227,6 @@
                 <div id="debugInfo" class="alert alert-info small d-none">
                     <h6>Debug Information:</h6>
                     <pre id="debugData"></pre>
-                </div>
-                
-                <div class="row" id="classesContainer">
-                    <!-- Will be populated dynamically -->
                 </div>
                 
                 <h5 class="mt-4">Using Classes in Code</h5>
