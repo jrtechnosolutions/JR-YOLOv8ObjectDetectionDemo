@@ -222,7 +222,7 @@
                             </div>
                         </div>
                         
-                        <!-- Botón para mostrar detalles completos del modelo -->
+                        <!-- Button to show complete model details -->
                         <div class="d-grid mt-3">
                             <button class="btn btn-info" id="showModelDetailsButton">
                                 <i class="bi bi-graph-up"></i> View Complete Training Results
@@ -591,11 +591,11 @@
             
             // Basic model info
             const modelInfo = [
-                { label: 'Model Name', value: model.name, tooltip: 'Nombre único del modelo, generalmente incluye la fecha/hora de entrenamiento' },
-                { label: 'Created', value: model.created, tooltip: 'Fecha y hora cuando se completó el entrenamiento del modelo' },
-                { label: 'Model Type', value: model.type, tooltip: 'Formato del archivo del modelo (PyTorch es el formato nativo de YOLO)' },
-                { label: 'Model Size', value: formatFileSize(model.model_info.model_size), tooltip: 'Tamaño del archivo del modelo entrenado en disco' },
-                { label: 'ONNX Available', value: model.has_onnx ? 'Yes' : 'No', tooltip: 'ONNX es un formato interoperable para modelos de ML que permite usarlo en diferentes plataformas' }
+                { label: 'Model Name', value: model.name, tooltip: 'Unique name of the model, usually includes the training date/time' },
+                { label: 'Created', value: model.created, tooltip: 'Date and time when the model training was completed' },
+                { label: 'Model Type', value: model.type, tooltip: 'Format of the model file (PyTorch is the native format for YOLO)' },
+                { label: 'Model Size', value: formatFileSize(model.model_info.model_size), tooltip: 'Size of the trained model file on disk' },
+                { label: 'ONNX Available', value: model.has_onnx ? 'Yes' : 'No', tooltip: 'ONNX is an interoperable format for ML models that allows using it on different platforms' }
             ];
             
             // Add class information if available
@@ -603,7 +603,7 @@
                 const classes = typeof model.model_info.classes === 'object' 
                     ? Object.values(model.model_info.classes).join(', ') 
                     : model.model_info.classes;
-                modelInfo.push({ label: 'Classes', value: classes, tooltip: 'Categorías de objetos que el modelo ha sido entrenado para detectar' });
+                modelInfo.push({ label: 'Classes', value: classes, tooltip: 'Categories of objects the model has been trained to detect' });
             }
             
             // Populate model info list
@@ -624,22 +624,22 @@
                     { 
                         label: 'Precision', 
                         value: (model.metrics.precision || model.metrics['metrics/precision(B)'] || 0).toFixed(4),
-                        tooltip: 'Porcentaje de detecciones que son correctas. Un valor alto significa que el modelo tiene pocos falsos positivos.'
+                        tooltip: 'Percentage of detections that are correct. A high value means the model has few false positives.'
                     },
                     { 
                         label: 'Recall', 
                         value: (model.metrics.recall || model.metrics['metrics/recall(B)'] || 0).toFixed(4),
-                        tooltip: 'Porcentaje de objetos reales que fueron detectados. Un valor alto significa que el modelo encuentra la mayoría de los objetos.'
+                        tooltip: 'Percentage of actual objects that were detected. A high value means the model finds most objects.'
                     },
                     { 
                         label: 'mAP50', 
                         value: (model.metrics.mAP50 || model.metrics['metrics/mAP50(B)'] || 0).toFixed(4),
-                        tooltip: 'Mean Average Precision con umbral IoU de 0.5. Métrica estándar para evaluar modelos de detección de objetos.'
+                        tooltip: 'Mean Average Precision with IoU threshold of 0.5. Standard metric for evaluating object detection models.'
                     },
                     { 
                         label: 'mAP50-95', 
                         value: (model.metrics['mAP50-95'] || model.metrics['metrics/mAP50-95(B)'] || 0).toFixed(4),
-                        tooltip: 'Media de mAP en distintos umbrales de IoU (0.5-0.95). Métrica más rigurosa que evalúa la precisión de localización.'
+                        tooltip: 'Average of mAP across different IoU thresholds (0.5-0.95). More rigorous metric that evaluates localization accuracy.'
                     }
                 ];
                 
