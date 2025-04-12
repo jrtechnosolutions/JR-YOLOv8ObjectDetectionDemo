@@ -990,6 +990,33 @@ def api_list_models():
                 rel_path = os.path.relpath(model_path, app.config['MODELS_FOLDER'])
                 model_name = os.path.splitext(os.path.basename(file))[0]
                 
+                # Determinar el directorio del modelo (puede ser .../model_name/weights/best.pt)
+                model_dir = os.path.dirname(model_path)
+                if os.path.basename(model_dir) == 'weights':
+                    model_dir = os.path.dirname(model_dir)
+                
+                # Verificar si hay gráficos y reportes
+                training_files = {}
+                
+                # Archivos comunes generados por YOLOv8 durante el entrenamiento
+                potential_files = [
+                    'labels.jpg',                # Visualización de etiquetas
+                    'results.png',               # Gráfico de resultados
+                    'confusion_matrix.png',      # Matriz de confusión
+                    'PR_curve.png',              # Curva precision-recall
+                    'F1_curve.png',              # Curva F1
+                    'P_curve.png',               # Curva precision
+                    'R_curve.png',               # Curva recall
+                    'results.csv',               # Métricas detalladas por época
+                    'args.yaml',                 # Configuración del entrenamiento
+                ]
+                
+                for potential_file in potential_files:
+                    file_path = os.path.join(model_dir, potential_file)
+                    if os.path.exists(file_path):
+                        rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
+                        training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
+                
                 # Check if there's a corresponding ONNX model
                 onnx_path = model_path.replace('.pt', '.onnx')
                 has_onnx = os.path.exists(onnx_path)
@@ -997,6 +1024,46 @@ def api_list_models():
                 # Create web-accessible URL for the model
                 # Static files are served from /static/models/
                 url_path = url_for('static', filename=f'models/{rel_path}')
+                
+                # Try to read metrics from the results.csv file
+                metrics = {}
+                csv_path = os.path.join(model_dir, 'results.csv')
+                if os.path.exists(csv_path):
+                    try:
+                        with open(csv_path, 'r') as f:
+                            lines = f.readlines()
+                            if len(lines) >= 2:  # Header + at least one data row
+                                header = lines[0].strip().split(',')
+                                last_row = lines[-1].strip().split(',')
+                                
+                                # Create a dictionary of metrics from the last row
+                                for i, key in enumerate(header):
+                                    if i < len(last_row):
+                                        try:
+                                            metrics[key] = float(last_row[i])
+                                        except (ValueError, TypeError):
+                                            metrics[key] = last_row[i]
+                    except Exception as e:
+                        print(f"Error reading metrics: {e}")
+                
+                # Get model information if available
+                model_info = {
+                    'classes': None,
+                    'model_size': os.path.getsize(model_path),
+                    'imgsz': 640,  # Default
+                }
+                
+                # Extract model classes if available
+                yaml_files = [f for f in os.listdir(model_dir) if f.endswith('.yaml') and f != 'args.yaml']
+                for yaml_file in yaml_files:
+                    try:
+                        with open(os.path.join(model_dir, yaml_file), 'r') as f:
+                            yaml_data = yaml.safe_load(f)
+                            if isinstance(yaml_data, dict) and 'names' in yaml_data:
+                                model_info['classes'] = yaml_data['names']
+                                break
+                    except:
+                        pass
                 
                 models.append({
                     'name': model_name,
@@ -1006,10 +1073,19 @@ def api_list_models():
                     'type': 'PyTorch',
                     'has_onnx': has_onnx,
                     'onnx_path': url_for('static', filename=f'models/{os.path.relpath(onnx_path, app.config["MODELS_FOLDER"])}') if has_onnx else None,
-                    'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S')
+                    'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S'),
+                    'training_files': training_files,
+                    'metrics': metrics,
+                    'model_info': model_info,
+                    'model_dir': os.path.relpath(model_dir, app.config['MODELS_FOLDER'])
                 })
     
     return jsonify(models)
+
+@app.route('/model_artifact/<path:path>')
+def model_artifact(path):
+    """Serve model artifacts like graphs and training files"""
+    return send_file(os.path.join(app.config['MODELS_FOLDER'], path))
 
 @app.route('/model/<path:model_dir>/weights/<path:model_file>')
 def serve_model_file(model_dir, model_file):

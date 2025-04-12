@@ -54,6 +54,40 @@
         display: none;
         margin-top: 1rem;
     }
+    .model-artifact {
+        margin-bottom: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        overflow: hidden;
+    }
+    .model-artifact img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+    }
+    .metrics-table {
+        font-size: 0.9rem;
+    }
+    .metrics-table th {
+        font-weight: 600;
+    }
+    .model-details-section {
+        margin-top: 2rem;
+        display: none;
+    }
+    .artifact-thumbnail {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .artifact-thumbnail:hover {
+        transform: scale(1.02);
+    }
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+    }
+    .training-artifacts-container {
+        margin-top: 1.5rem;
+    }
 </style>
 {% endblock %}
 
@@ -170,15 +204,22 @@
                         <h5>Training Complete!</h5>
                         <div class="row mt-3">
                             <div class="col-md-6">
-                                <a href="#" class="btn btn-success d-block" id="downloadModelButton">
-                                    <i class="bi bi-download"></i> Download PT Model
+                                <a href="#" class="btn btn-primary d-block mb-2" id="downloadModelButton">
+                                    <i class="bi bi-download"></i> Download PyTorch Model
                                 </a>
                             </div>
                             <div class="col-md-6">
-                                <a href="#" class="btn btn-outline-success d-block" id="downloadOnnxButton">
+                                <a href="#" class="btn btn-outline-primary d-block mb-2" id="downloadOnnxButton">
                                     <i class="bi bi-download"></i> Download ONNX Model
                                 </a>
                             </div>
+                        </div>
+                        
+                        <!-- Botón para mostrar detalles completos del modelo -->
+                        <div class="d-grid mt-3">
+                            <button class="btn btn-info" id="showModelDetailsButton">
+                                <i class="bi bi-graph-up"></i> View Complete Training Results
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -198,185 +239,269 @@
         </div>
     </div>
 </div>
+
+<!-- New Section for Model Details -->
+<div class="card mt-4 model-details-section" id="modelDetailsSection">
+    <div class="card-header">
+        <h3 class="card-title mb-0">Model Training Results</h3>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-pills mb-3" id="modelDetailsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="summary-tab" data-bs-toggle="pill" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">
+                    <i class="bi bi-info-circle"></i> Summary
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="metrics-tab" data-bs-toggle="pill" data-bs-target="#metrics" type="button" role="tab" aria-controls="metrics" aria-selected="false">
+                    <i class="bi bi-graph-up"></i> Metrics
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="visualizations-tab" data-bs-toggle="pill" data-bs-target="#visualizations" type="button" role="tab" aria-controls="visualizations" aria-selected="false">
+                    <i class="bi bi-image"></i> Visualizations
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="config-tab" data-bs-toggle="pill" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="false">
+                    <i class="bi bi-gear"></i> Configuration
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="modelDetailsTabContent">
+            <!-- Summary Tab -->
+            <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Model Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="modelInfoList">
+                                    <!-- Model info will be populated here -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Performance Overview</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush" id="performanceList">
+                                    <!-- Performance metrics will be populated here -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Metrics Tab -->
+            <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metricsTableBody">
+                            <!-- Metrics will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Visualizations Tab -->
+            <div class="tab-pane fade" id="visualizations" role="tabpanel" aria-labelledby="visualizations-tab">
+                <div class="row row-cols-1 row-cols-md-2 g-4" id="visualizationsGallery">
+                    <!-- Visualizations will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Configuration Tab -->
+            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Training Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <pre id="configContent" class="bg-light p-3 rounded"><!-- Config will be populated here --></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    $(document).ready(function() {
-        // DOM elements
+    document.addEventListener('DOMContentLoaded', function() {
+        // DOM Elements
         const datasetInput = document.getElementById('datasetInput');
         const browseButton = document.getElementById('browseButton');
         const dropArea = document.getElementById('dropArea');
         const datasetInfo = document.getElementById('datasetInfo');
         const datasetDetails = document.getElementById('datasetDetails');
-        const modelTypeSelect = document.getElementById('modelTypeSelect');
-        const epochsInput = document.getElementById('epochsInput');
-        const batchSizeInput = document.getElementById('batchSizeInput');
-        const imgSizeInput = document.getElementById('imgSizeInput');
         const startTrainingButton = document.getElementById('startTrainingButton');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const trainingStatus = document.getElementById('trainingStatus');
-        const statusMessage = document.getElementById('statusMessage');
         const progressBar = document.getElementById('progressBar');
+        const statusMessage = document.getElementById('statusMessage');
         const trainingDetails = document.getElementById('trainingDetails');
         const completedActions = document.getElementById('completedActions');
         const downloadModelButton = document.getElementById('downloadModelButton');
         const downloadOnnxButton = document.getElementById('downloadOnnxButton');
         const modelsList = document.getElementById('modelsList');
         const noModelsMessage = document.getElementById('noModelsMessage');
+        const showModelDetailsButton = document.getElementById('showModelDetailsButton');
+        const modelDetailsSection = document.getElementById('modelDetailsSection');
+        
+        // Model details elements
+        const modelInfoList = document.getElementById('modelInfoList');
+        const performanceList = document.getElementById('performanceList');
+        const metricsTableBody = document.getElementById('metricsTableBody');
+        const visualizationsGallery = document.getElementById('visualizationsGallery');
+        const configContent = document.getElementById('configContent');
         
         // Variables
-        let datasetFile = null;
+        let dataset = null;
         let trainingInterval = null;
+        let currentModelDetails = null;
         
-        // Load existing models on page load
-        loadModels();
+        // Event Handlers
+        browseButton.addEventListener('click', () => datasetInput.click());
+        datasetInput.addEventListener('change', handleFileSelect);
+        dropArea.addEventListener('dragover', handleDragOver);
+        dropArea.addEventListener('dragleave', handleDragLeave);
+        dropArea.addEventListener('drop', handleFileDrop);
+        startTrainingButton.addEventListener('click', startTraining);
+        showModelDetailsButton.addEventListener('click', showModelDetails);
         
-        // Event: Browse button clicked
-        browseButton.addEventListener('click', () => {
-            datasetInput.click();
-        });
-        
-        // Event: File selected
-        datasetInput.addEventListener('change', (e) => {
-            handleFileUpload(e.target.files[0]);
-        });
-        
-        // Event: Drag and drop
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
+        // File upload handlers
+        function handleDragOver(e) {
             e.preventDefault();
             e.stopPropagation();
+            dropArea.classList.add('dragover');
         }
         
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => {
-                dropArea.classList.add('dragover');
-            }, false);
-        });
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropArea.classList.remove('dragover');
+        }
         
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => {
-                dropArea.classList.remove('dragover');
-            }, false);
-        });
-        
-        dropArea.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const file = dt.files[0];
-            handleFileUpload(file);
-        }, false);
-        
-        // Function: Handle file upload
-        function handleFileUpload(file) {
-            if (file && file.name.endsWith('.zip')) {
-                datasetFile = file;
-                
-                // Update dataset info
-                datasetInfo.style.display = 'block';
-                datasetDetails.textContent = `${file.name} (${formatFileSize(file.size)})`;
-            } else {
-                alert('Please select a valid ZIP file.');
-                datasetFile = null;
-                datasetInfo.style.display = 'none';
+        function handleFileDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
             }
         }
         
-        // Function: Format file size
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
         }
         
-        // Event: Start training button clicked
-        startTrainingButton.addEventListener('click', () => {
-            // Validate inputs
-            if (!datasetFile) {
-                alert('Please upload a dataset file first.');
+        function processFile(file) {
+            if (file.name.endsWith('.zip')) {
+                dataset = file;
+                datasetDetails.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                datasetInfo.style.display = 'block';
+                startTrainingButton.disabled = false;
+            } else {
+                alert('Please upload a ZIP file containing your dataset.');
+            }
+        }
+        
+        // Training functions
+        function startTraining() {
+            if (!dataset) {
+                alert('Please upload a dataset first.');
                 return;
             }
             
-            // Show loading spinner
-            loadingSpinner.style.display = 'block';
+            // Get training parameters
+            const modelType = document.getElementById('modelTypeSelect').value;
+            const epochs = parseInt(document.getElementById('epochsInput').value);
+            const batchSize = parseInt(document.getElementById('batchSizeInput').value);
+            const imgSize = parseInt(document.getElementById('imgSizeInput').value);
             
             // Prepare form data
             const formData = new FormData();
-            formData.append('dataset', datasetFile);
-            formData.append('model_type', modelTypeSelect.value);
-            formData.append('epochs', epochsInput.value);
-            formData.append('batch_size', batchSizeInput.value);
-            formData.append('img_size', imgSizeInput.value);
+            formData.append('dataset', dataset);
+            formData.append('model_type', modelType);
+            formData.append('epochs', epochs);
+            formData.append('batch_size', batchSize);
+            formData.append('img_size', imgSize);
             
-            // Send request to start training
+            // Show loading spinner
+            startTrainingButton.disabled = true;
+            loadingSpinner.style.display = 'block';
+            
+            // Send API request to start training
             fetch('/api/start-training', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Training started:', data);
+                
                 // Hide loading spinner
                 loadingSpinner.style.display = 'none';
                 
-                if (data.status === 'success') {
-                    // Show training status
-                    trainingStatus.style.display = 'block';
-                    completedActions.style.display = 'none';
-                    
-                    // Start polling for training status
-                    startTrainingStatusPolling();
-                    
-                    // Scroll to training status
-                    trainingStatus.scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    // Show error
-                    alert('Error: ' + (data.message || 'Failed to start training'));
-                }
+                // Show training status
+                trainingStatus.style.display = 'block';
+                
+                // Start polling for training status
+                trainingInterval = setInterval(checkTrainingStatus, 5000);
             })
             .catch(error => {
+                console.error('Error starting training:', error);
                 loadingSpinner.style.display = 'none';
-                alert('Error: ' + error.message);
+                startTrainingButton.disabled = false;
+                alert('Error starting training. Please try again.');
             });
-        });
-        
-        // Function: Start training status polling
-        function startTrainingStatusPolling() {
-            // Clear any existing interval
-            if (trainingInterval) {
-                clearInterval(trainingInterval);
-            }
-            
-            // Update status immediately
-            updateTrainingStatus();
-            
-            // Set interval to update status every 5 seconds
-            trainingInterval = setInterval(updateTrainingStatus, 5000);
         }
         
-        // Function: Update training status
-        function updateTrainingStatus() {
+        function checkTrainingStatus() {
             fetch('/api/training-status')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Training status:', data);
+                    
                     // Update progress bar
                     progressBar.style.width = `${data.progress}%`;
                     progressBar.textContent = `${data.progress}%`;
-                    progressBar.setAttribute('aria-valuenow', data.progress);
                     
                     // Update status message
-                    statusMessage.textContent = data.message;
+                    statusMessage.textContent = data.message || 'Training in progress...';
                     
                     // Update training details
                     let detailsHtml = '';
-                    if (data.progress > 0) {
+                    if (data.message) {
+                        detailsHtml += `<p>${data.message}</p>`;
                         detailsHtml += `<p class="text-muted mt-2">Training progress: ${data.progress}%</p>`;
                     }
                     trainingDetails.innerHTML = detailsHtml;
+                    
+                    // Store model details for later use
+                    if (data.model_path) {
+                        currentModelDetails = data;
+                    }
                     
                     // Check if training is complete
                     if (data.complete) {
@@ -387,7 +512,13 @@
                         if (data.model_path) {
                             completedActions.style.display = 'block';
                             downloadModelButton.href = `/models/${data.model_path.split('/').pop()}`;
-                            downloadOnnxButton.href = `/models/${data.onnx_path.split('/').pop()}`;
+                            
+                            if (data.onnx_path) {
+                                downloadOnnxButton.href = `/models/${data.onnx_path.split('/').pop()}`;
+                                downloadOnnxButton.style.display = 'block';
+                            } else {
+                                downloadOnnxButton.style.display = 'none';
+                            }
                             
                             // Make the progress bar green
                             progressBar.classList.remove('progress-bar-animated');
@@ -401,6 +532,198 @@
                 .catch(error => {
                     console.error('Error fetching training status:', error);
                 });
+        }
+        
+        function showModelDetails() {
+            // Display the model details section
+            modelDetailsSection.style.display = 'block';
+            
+            // Scroll to the details section
+            modelDetailsSection.scrollIntoView({ behavior: 'smooth' });
+            
+            // Load model details from API
+            loadModelDetails();
+        }
+        
+        function loadModelDetails() {
+            fetch('/api/list-models')
+                .then(response => response.json())
+                .then(models => {
+                    // Find the latest model (the one we just trained)
+                    if (models.length > 0) {
+                        const latestModel = models[0]; // Assuming the list is sorted by creation date
+                        
+                        // Populate model info
+                        populateModelSummary(latestModel);
+                        
+                        // Populate metrics
+                        populateMetricsTable(latestModel);
+                        
+                        // Populate visualizations
+                        populateVisualizations(latestModel);
+                        
+                        // Populate config
+                        populateConfig(latestModel);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading model details:', error);
+                });
+        }
+        
+        function populateModelSummary(model) {
+            // Clear previous contents
+            modelInfoList.innerHTML = '';
+            performanceList.innerHTML = '';
+            
+            // Basic model info
+            const modelInfo = [
+                { label: 'Model Name', value: model.name },
+                { label: 'Created', value: model.created },
+                { label: 'Model Type', value: model.type },
+                { label: 'Model Size', value: formatFileSize(model.model_info.model_size) },
+                { label: 'ONNX Available', value: model.has_onnx ? 'Yes' : 'No' }
+            ];
+            
+            // Add class information if available
+            if (model.model_info.classes) {
+                const classes = typeof model.model_info.classes === 'object' 
+                    ? Object.values(model.model_info.classes).join(', ') 
+                    : model.model_info.classes;
+                modelInfo.push({ label: 'Classes', value: classes });
+            }
+            
+            // Populate model info list
+            modelInfo.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                li.innerHTML = `
+                    <span>${item.label}</span>
+                    <span class="badge bg-primary rounded-pill">${item.value}</span>
+                `;
+                modelInfoList.appendChild(li);
+            });
+            
+            // Performance metrics
+            if (model.metrics) {
+                const performanceMetrics = [
+                    { label: 'Precision', value: (model.metrics.precision || model.metrics['metrics/precision(B)'] || 0).toFixed(4) },
+                    { label: 'Recall', value: (model.metrics.recall || model.metrics['metrics/recall(B)'] || 0).toFixed(4) },
+                    { label: 'mAP50', value: (model.metrics.mAP50 || model.metrics['metrics/mAP50(B)'] || 0).toFixed(4) },
+                    { label: 'mAP50-95', value: (model.metrics['mAP50-95'] || model.metrics['metrics/mAP50-95(B)'] || 0).toFixed(4) }
+                ];
+                
+                // Populate performance list
+                performanceMetrics.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <span>${item.label}</span>
+                        <span class="badge bg-success rounded-pill">${item.value}</span>
+                    `;
+                    performanceList.appendChild(li);
+                });
+            } else {
+                performanceList.innerHTML = '<li class="list-group-item">No performance metrics available</li>';
+            }
+        }
+        
+        function populateMetricsTable(model) {
+            // Clear previous contents
+            metricsTableBody.innerHTML = '';
+            
+            if (!model.metrics || Object.keys(model.metrics).length === 0) {
+                metricsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="2" class="text-center">No metrics available</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Add all metrics to table
+            Object.entries(model.metrics).forEach(([key, value]) => {
+                const tr = document.createElement('tr');
+                
+                // Format the value to be more readable
+                let formattedValue = value;
+                if (typeof value === 'number') {
+                    formattedValue = value.toFixed(4);
+                }
+                
+                tr.innerHTML = `
+                    <td>${key}</td>
+                    <td>${formattedValue}</td>
+                `;
+                metricsTableBody.appendChild(tr);
+            });
+        }
+        
+        function populateVisualizations(model) {
+            // Clear previous contents
+            visualizationsGallery.innerHTML = '';
+            
+            if (!model.training_files || Object.keys(model.training_files).length === 0) {
+                visualizationsGallery.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No visualizations available
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Mapping of file names to friendly titles
+            const fileLabels = {
+                'labels.jpg': 'Dataset Labels',
+                'results.png': 'Training Results',
+                'confusion_matrix.png': 'Confusion Matrix',
+                'PR_curve.png': 'Precision-Recall Curve',
+                'F1_curve.png': 'F1 Curve',
+                'P_curve.png': 'Precision Curve',
+                'R_curve.png': 'Recall Curve'
+            };
+            
+            // Add all image files to gallery
+            Object.entries(model.training_files).forEach(([filename, url]) => {
+                // Only add image files
+                if (filename.endsWith('.jpg') || filename.endsWith('.png')) {
+                    const col = document.createElement('div');
+                    col.className = 'col';
+                    
+                    const title = fileLabels[filename] || filename;
+                    
+                    col.innerHTML = `
+                        <div class="card model-artifact h-100">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">${title}</h6>
+                            </div>
+                            <img src="${url}" class="artifact-thumbnail" alt="${title}" 
+                                 onclick="window.open('${url}', '_blank', 'width=800,height=600')">
+                        </div>
+                    `;
+                    visualizationsGallery.appendChild(col);
+                }
+            });
+        }
+        
+        function populateConfig(model) {
+            // Check if args.yaml is available
+            if (model.training_files && model.training_files['args.yaml']) {
+                // Fetch the YAML file content
+                fetch(model.training_files['args.yaml'])
+                    .then(response => response.text())
+                    .then(content => {
+                        configContent.textContent = content;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching config file:', error);
+                        configContent.textContent = 'Error loading configuration file.';
+                    });
+            } else {
+                configContent.textContent = 'No configuration file available.';
+            }
         }
         
         // Function: Load models
@@ -420,9 +743,7 @@
                             const modelCard = document.createElement('div');
                             modelCard.className = 'col-md-6 col-lg-4';
                             
-                            const date = new Date(model.date * 1000).toLocaleDateString();
-                            const fileSize = formatFileSize(model.size);
-                            const isPt = model.name.endsWith('.pt');
+                            const fileSize = formatFileSize(model.model_info.model_size);
                             
                             modelCard.innerHTML = `
                                 <div class="card model-card">
@@ -430,14 +751,19 @@
                                         <h5 class="card-title">${model.name}</h5>
                                         <p class="card-text text-muted">
                                             <small>
-                                                <i class="bi bi-calendar"></i> ${date}<br>
+                                                <i class="bi bi-calendar"></i> ${model.created}<br>
                                                 <i class="bi bi-hdd"></i> ${fileSize}
                                             </small>
                                         </p>
                                         <div class="d-grid">
-                                            <a href="${model.path}" class="btn btn-sm ${isPt ? 'btn-primary' : 'btn-outline-primary'}" download>
-                                                <i class="bi bi-download"></i> Download ${isPt ? 'PT' : 'ONNX'} Model
+                                            <a href="${model.path}" class="btn btn-sm btn-primary mb-2" download>
+                                                <i class="bi bi-download"></i> Download PyTorch Model
                                             </a>
+                                            ${model.has_onnx ? `
+                                                <a href="${model.onnx_path}" class="btn btn-sm btn-outline-primary" download>
+                                                    <i class="bi bi-download"></i> Download ONNX Model
+                                                </a>
+                                            ` : ''}
                                         </div>
                                     </div>
                                 </div>
@@ -454,6 +780,20 @@
                     console.error('Error loading models:', error);
                 });
         }
+        
+        // Utility function: Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Load models on page load
+        loadModels();
     });
 </script>
 {% endblock %}
