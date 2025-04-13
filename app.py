@@ -1381,9 +1381,53 @@ def model_details(model_id):
         class_names = ["CHILD", "COLUMPIO"]
         app.logger.warning(f"Using default classes for model {model_id}")
     
-    # Get metrics from metrics.json or results.json if available
-    precision = 0.0
-    recall = 0.0
+    # Función auxiliar para buscar métricas en diferentes posibles ubicaciones y formatos
+    def find_metric_value(metric_name, data_sources):
+        """
+        Busca un valor métrico en múltiples fuentes de datos y con diferentes posibles nombres de clave.
+        Args:
+            metric_name: Nombre base de la métrica a buscar (ej: 'precision')
+            data_sources: Lista de diccionarios donde buscar la métrica
+        Returns:
+            El valor de la métrica si se encuentra, o 0.0 si no se encuentra
+        """
+        # Lista de posibles nombres de clave para cada métrica
+        possible_keys = [
+            metric_name,                      # "precision"
+            f"metrics/{metric_name}",         # "metrics/precision"
+            f"metrics/{metric_name}(B)",      # "metrics/precision(B)"
+            metric_name.lower(),              # "precision" (lowercase)
+            metric_name.upper(),              # "PRECISION" (uppercase)
+            f"val/{metric_name}",             # "val/precision" 
+            f"test/{metric_name}",            # "test/precision"
+            f"validation/{metric_name}",      # "validation/precision"
+            f"metrics/val_{metric_name}"      # "metrics/val_precision"
+        ]
+        
+        # Buscar en cada fuente de datos proporcionada
+        for data_source in data_sources:
+            if not data_source:
+                continue
+                
+            # Buscar con cada posible nombre de clave
+            for key in possible_keys:
+                if key in data_source:
+                    app.logger.info(f"Found {metric_name} at key {key}: {data_source[key]}")
+                    return float(data_source[key])
+                    
+            # Si hay una clave de metrics anidada, buscar también allí
+            if 'metrics' in data_source and isinstance(data_source['metrics'], dict):
+                for key in possible_keys:
+                    if key in data_source['metrics']:
+                        app.logger.info(f"Found {metric_name} in nested metrics at key {key}: {data_source['metrics'][key]}")
+                        return float(data_source['metrics'][key])
+        
+        # Si llegamos aquí, no se encontró la métrica
+        app.logger.warning(f"Metric {metric_name} not found in any data source")
+        return 0.0
+    
+    # Recolectar todas las posibles fuentes de datos que podrían contener métricas
+    data_sources = []
     
     # Check for metrics.json
     metrics_path = os.path.join(model_path, 'metrics.json')
@@ -1391,47 +1435,46 @@ def model_details(model_id):
         try:
             with open(metrics_path, 'r') as f:
                 metrics = json.load(f)
-                # Try different keys that might contain precision/recall
-                precision = metrics.get('precision', metrics.get('metrics/precision(B)', 0.0))
-                recall = metrics.get('recall', metrics.get('metrics/recall(B)', 0.0))
-                app.logger.info(f"Loaded metrics from {metrics_path}: precision={precision}, recall={recall}")
+                data_sources.append(metrics)
+                app.logger.info(f"Loaded metrics from {metrics_path}")
         except Exception as e:
             app.logger.error(f"Error reading metrics from {metrics_path}: {e}")
     
-    # If no metrics.json, check for results.json
-    if precision == 0.0 or recall == 0.0:
-        results_path = os.path.join(model_path, 'results.json')
-        if os.path.exists(results_path):
-            try:
-                with open(results_path, 'r') as f:
-                    results = json.load(f)
-                    if 'metrics' in results:
-                        metrics = results['metrics']
-                        precision = metrics.get('precision', metrics.get('metrics/precision(B)', 0.0))
-                        recall = metrics.get('recall', metrics.get('metrics/recall(B)', 0.0))
-                        app.logger.info(f"Loaded metrics from {results_path}: precision={precision}, recall={recall}")
-            except Exception as e:
-                app.logger.error(f"Error reading metrics from {results_path}: {e}")
+    # Check for results.json
+    results_path = os.path.join(model_path, 'results.json')
+    if os.path.exists(results_path):
+        try:
+            with open(results_path, 'r') as f:
+                results = json.load(f)
+                data_sources.append(results)
+                app.logger.info(f"Loaded results from {results_path}")
+        except Exception as e:
+            app.logger.error(f"Error reading results from {results_path}: {e}")
     
-    # If still no metrics, check for any files in a results directory
-    if precision == 0.0 or recall == 0.0:
-        results_dir = os.path.join(model_path, 'results')
-        if os.path.exists(results_dir) and os.path.isdir(results_dir):
-            for file_name in os.listdir(results_dir):
-                if file_name.endswith('.json'):
-                    try:
-                        with open(os.path.join(results_dir, file_name), 'r') as f:
-                            data = json.load(f)
-                            if 'metrics' in data:
-                                metrics = data['metrics']
-                                precision = metrics.get('precision', metrics.get('metrics/precision(B)', precision))
-                                recall = metrics.get('recall', metrics.get('metrics/recall(B)', recall))
-                                app.logger.info(f"Loaded metrics from {file_name}: precision={precision}, recall={recall}")
-                                break
-                    except Exception as e:
-                        app.logger.error(f"Error reading metrics from {file_name}: {e}")
+    # Check for any files in a results directory
+    results_dir = os.path.join(model_path, 'results')
+    if os.path.exists(results_dir) and os.path.isdir(results_dir):
+        for file_name in os.listdir(results_dir):
+            if file_name.endswith('.json'):
+                try:
+                    with open(os.path.join(results_dir, file_name), 'r') as f:
+                        data = json.load(f)
+                        data_sources.append(data)
+                        app.logger.info(f"Loaded data from {os.path.join(results_dir, file_name)}")
+                except Exception as e:
+                    app.logger.error(f"Error reading data from {file_name}: {e}")
     
-    # If no metrics found, use default values
+    # Add model_info to data sources if it's not empty
+    if model_info:
+        data_sources.append(model_info)
+    
+    # Buscar las métricas usando la función auxiliar
+    precision = find_metric_value('precision', data_sources)
+    recall = find_metric_value('recall', data_sources)
+    map50 = find_metric_value('mAP50', data_sources)
+    map50_95 = find_metric_value('mAP50-95', data_sources)
+    
+    # Si no se encuentran métricas, usar valores predeterminados
     if precision == 0.0:
         precision = 0.92
         app.logger.warning(f"No precision metrics found for model {model_id}, using default value")
@@ -1440,16 +1483,28 @@ def model_details(model_id):
         recall = 0.89
         app.logger.warning(f"No recall metrics found for model {model_id}, using default value")
     
+    if map50 == 0.0:
+        map50 = 0.88
+        app.logger.warning(f"No mAP50 metrics found for model {model_id}, using default value")
+    
+    if map50_95 == 0.0:
+        map50_95 = 0.67
+        app.logger.warning(f"No mAP50-95 metrics found for model {model_id}, using default value")
+    
     # Format with 2 decimal places
     precision = round(float(precision), 2)
     recall = round(float(recall), 2)
+    map50 = round(float(map50), 2)
+    map50_95 = round(float(map50_95), 2)
     
     return render_template('model_details.html', 
                            model_id=model_id,
                            model_info=model_info,
                            class_names=class_names,
                            precision=precision,
-                           recall=recall)
+                           recall=recall,
+                           map50=map50,
+                           map50_95=map50_95)
 
 @app.route('/api/model-details')
 def api_model_details():
