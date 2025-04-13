@@ -237,6 +237,18 @@
         <!-- Existing Models -->
         <div class="model-list">
             <h3>Available Models</h3>
+            
+            <!-- Explanation about model types -->
+            <div class="alert alert-info mb-4">
+                <h5><i class="bi bi-info-circle"></i> Understanding Generated Models</h5>
+                <p>After training is complete, two model versions are generated:</p>
+                <ul>
+                    <li><strong>Best Model (best)</strong>: This model represents the checkpoint with the highest performance metrics during training. It typically offers the best detection accuracy and is recommended for most production use cases.</li>
+                    <li><strong>Last Model (last)</strong>: This model represents the final state of the training process. It may or may not perform better than the best model, but is useful for continuing training or analyzing the full training cycle.</li>
+                </ul>
+                <p>For most applications, we recommend using the <strong>best</strong> model unless you have specific reasons to choose the last checkpoint.</p>
+            </div>
+            
             <div class="row" id="modelsList">
                 <!-- Models will be populated here -->
                 <div class="col-12 text-center py-4 text-muted" id="noModelsMessage">
