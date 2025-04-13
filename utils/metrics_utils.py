@@ -221,26 +221,55 @@ class ModelMetricsExtractor:
                 continue
                 
             logger.info(f"Buscando en fuente de datos {i+1}. Tipo: {type(data_source)}. Claves: {list(data_source.keys()) if isinstance(data_source, dict) else 'No es un diccionario'}")
+            
+            # Pre-procesar las claves si el origen de datos proviene de un CSV con espacios en los nombres
+            # de las columnas, como los que genera YOLOv8
+            processed_data_source = {}
+            for key in data_source:
+                processed_key = key.strip() if isinstance(key, str) else key
+                processed_data_source[processed_key] = data_source[key]
+                
+                # También crear una versión sin prefijos como train/ val/ metrics/
+                if isinstance(processed_key, str) and '/' in processed_key:
+                    simple_key = processed_key.split('/')[-1]
+                    processed_data_source[simple_key] = data_source[key]
+                    
+                    # Si tiene un sufijo como (B), crear una versión sin él
+                    if '(' in simple_key:
+                        base_key = simple_key.split('(')[0]
+                        processed_data_source[base_key] = data_source[key]
+            
+            # Combinar el origen original con las claves procesadas para búsqueda
+            combined_source = {**data_source, **processed_data_source}
                 
             # Buscar con cada posible nombre de clave
             for key in possible_keys:
                 # Buscar la clave exacta
-                if key in data_source:
-                    logger.info(f"¡ENCONTRADO! Métrica {metric_name} en clave {key}: {data_source[key]}")
+                if key in combined_source:
+                    logger.info(f"¡ENCONTRADO! Métrica {metric_name} en clave {key}: {combined_source[key]}")
                     try:
-                        return float(data_source[key])
+                        return float(combined_source[key])
                     except (ValueError, TypeError):
-                        logger.warning(f"No se pudo convertir a float: {data_source[key]}")
+                        logger.warning(f"No se pudo convertir a float: {combined_source[key]}")
                         continue
                 
                 # Buscar insensible a mayúsculas/minúsculas
-                for source_key in data_source:
+                for source_key in combined_source:
                     if source_key.lower() == key.lower():
-                        logger.info(f"¡ENCONTRADO (case insensitive)! Métrica {metric_name} en clave {source_key}: {data_source[source_key]}")
+                        logger.info(f"¡ENCONTRADO (case insensitive)! Métrica {metric_name} en clave {source_key}: {combined_source[source_key]}")
                         try:
-                            return float(data_source[source_key])
+                            return float(combined_source[source_key])
                         except (ValueError, TypeError):
-                            logger.warning(f"No se pudo convertir a float: {data_source[source_key]}")
+                            logger.warning(f"No se pudo convertir a float: {combined_source[source_key]}")
+                            continue
+                    
+                    # Si la clave fuente contiene la clave buscada
+                    if isinstance(source_key, str) and key.lower() in source_key.lower():
+                        logger.info(f"¡ENCONTRADO (substring)! Métrica {metric_name} en clave {source_key}: {combined_source[source_key]}")
+                        try:
+                            return float(combined_source[source_key])
+                        except (ValueError, TypeError):
+                            logger.warning(f"No se pudo convertir a float: {combined_source[source_key]}")
                             continue
                     
             # Si hay una clave de metrics anidada, buscar también allí
