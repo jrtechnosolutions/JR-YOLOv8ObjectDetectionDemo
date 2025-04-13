@@ -5,41 +5,32 @@
 
 // Function to load model details based on model ID
 function loadModelDetails(modelId) {
-    console.log(`Loading model details for model ID: ${modelId}`);
+    console.log(`[DEBUG] Loading model details for model ID: ${modelId}`);
     
     // Show loading message in classesStats
     const classesStats = document.getElementById('classesStats');
     if (classesStats) {
         classesStats.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p>Cargando estadísticas...</p></div>';
     } else {
-        console.error('Element with ID "classesStats" not found in the DOM');
+        console.error('[ERROR] Element with ID "classesStats" not found in the DOM');
     }
     
     // Fetch model details from API
+    console.log(`[DEBUG] Fetching from API: /api/model-details?id=${encodeURIComponent(modelId)}`);
     fetch(`/api/model-details?id=${encodeURIComponent(modelId)}`)
         .then(response => {
+            console.log(`[DEBUG] API Response status:`, response.status);
             if (!response.ok) {
                 throw new Error('Model not found or error fetching model details');
             }
             return response.json();
         })
         .then(data => {
-            console.log('Model data received:', data);
-            // Add default classes if none present (for testing)
-            if (!data.model_info || !data.model_info.classes) {
-                console.warn('No classes found in model data, adding default');
-                if (!data.model_info) data.model_info = {};
-                data.model_info.classes = {
-                    0: 'person', 
-                    1: 'bicycle', 
-                    2: 'car'
-                };
-            }
-            // Render model details to the page
+            console.log('[DEBUG] Model data received from API:', data);
             renderModelDetails(data);
         })
         .catch(error => {
-            console.error('Error fetching model details:', error);
+            console.error('[ERROR] Error fetching model details:', error);
             // Show error message on the page
             document.querySelector('.container').innerHTML = `
                 <div class="alert alert-danger">
@@ -53,6 +44,8 @@ function loadModelDetails(modelId) {
 
 // Function to render model details to the page
 function renderModelDetails(model) {
+    console.log('[DEBUG] Rendering model details:', model);
+    
     // Update page title and header
     document.title = `${model.name} - YOLO Vision AI`;
     document.getElementById('modelName').textContent = model.name;
@@ -98,6 +91,9 @@ function renderModelDetails(model) {
         specsTable.appendChild(row);
     });
     
+    // Download links
+    updateDownloadLinks(model);
+    
     // Training configuration
     const trainingConfigTable = document.getElementById('trainingConfigTable');
     trainingConfigTable.innerHTML = '';
@@ -120,11 +116,13 @@ function renderModelDetails(model) {
         trainingConfigTable.appendChild(row);
     });
     
+    // Get metrics data only once
+    const metrics = model.metrics || {};
+    console.log('[DEBUG] Metrics data:', metrics);
+    
     // Performance metrics
     const metricsDiv = document.getElementById('performanceMetrics');
     metricsDiv.innerHTML = '';
-    
-    const metrics = model.metrics || {};
     
     const metricItems = [
         { name: 'Precision', value: (metrics.precision || metrics['metrics/precision(B)'] || 0).toFixed(4), color: 'success' },
@@ -150,98 +148,127 @@ function renderModelDetails(model) {
         const debugData = document.getElementById('debugData');
         
         // Format debug data in a readable way
-        const debugObject = {
-            model_name: model.name,
-            has_model_info: !!model.model_info,
-            has_classes_in_model_info: !!(model.model_info && model.model_info.classes),
-            has_classes_direct: !!model.classes,
-            has_names_in_model_info: !!(model.model_info && model.model_info.names),
-            class_count_in_model_info: model.model_info && model.model_info.classes ? Object.keys(model.model_info.classes).length : 0,
-            class_count_direct: model.classes ? Object.keys(model.classes).length : 0,
-            class_count_in_names: model.model_info && model.model_info.names ? Object.keys(model.model_info.names).length : 0
-        };
-        
-        debugData.textContent = JSON.stringify(debugObject, null, 2);
-        debugInfo.classList.remove('d-none'); // Make debug info visible during development
+        if (debugInfo && debugData) {
+            const debugObj = {
+                model_info: model.model_info || {},
+                metrics: metrics,
+                has_classes: model.model_info && model.model_info.classes ? 
+                    Object.keys(model.model_info.classes).length : 0
+            };
+            debugData.textContent = JSON.stringify(debugObj, null, 2);
+            debugInfo.classList.remove('d-none'); // Make debug info visible during development
+        }
     }
     
     // Get classes data and metrics data
+    console.log('[DEBUG] Checking for classes and metrics data');
     let classesData = null;
-    const metrics = model.metrics || {};
     
     // Populate Class Statistics section - ONLY REAL DATA, NO DEFAULTS
     const classesStats = document.getElementById('classesStats');
+    console.log('[DEBUG] classesStats element:', classesStats);
     
     if (model.model_info && model.model_info.classes) {
         classesData = model.model_info.classes;
-        console.log("Found real classes in model_info.classes:", classesData);
+        console.log("[DEBUG] Found classes in model_info.classes:", classesData);
         
         if (classesStats) {
             const classCount = Object.keys(classesData).length;
+            console.log(`[DEBUG] Number of classes: ${classCount}`);
             
             // Only use metrics if they are actually present in the data
             const hasPrecision = metrics.precision || metrics['metrics/precision(B)'];
             const hasRecall = metrics.recall || metrics['metrics/recall(B)'];
             
-            let statsHTML = '<div class="mb-3"><div>';
+            console.log(`[DEBUG] Has precision: ${hasPrecision ? 'Yes' : 'No'}`);
+            console.log(`[DEBUG] Has recall: ${hasRecall ? 'Yes' : 'No'}`);
             
-            // Total Classes (always show this)
-            statsHTML += `
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="fw-bold">Total Classes:</span>
-                    <span class="badge bg-primary">${classCount}</span>
-                </div>`;
+            // Build HTML for class statistics
+            console.log('[DEBUG] Building stats HTML...');
             
-            // Only show precision if available in metrics
-            if (hasPrecision) {
-                const precision = (metrics.precision || metrics['metrics/precision(B)']).toFixed(2);
-                statsHTML += `
+            // Formato simplificado que muestra datos básicos
+            classesStats.innerHTML = `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-bold">Total Classes:</span>
+                        <span class="badge bg-primary">${classCount}</span>
+                    </div>
+                    ${hasPrecision ? `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Precision:</span>
-                        <span class="badge bg-success">${precision}</span>
-                    </div>`;
-            }
-            
-            // Only show recall if available in metrics
-            if (hasRecall) {
-                const recall = (metrics.recall || metrics['metrics/recall(B)']).toFixed(2);
-                statsHTML += `
+                        <span class="badge bg-success">${(metrics.precision || metrics['metrics/precision(B)']).toFixed(2)}</span>
+                    </div>` : ''}
+                    ${hasRecall ? `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Recall:</span>
-                        <span class="badge bg-info">${recall}</span>
-                    </div>`;
-            }
-            
-            statsHTML += '</div></div>';
-            
-            // Class Distribution - only show if we have real classes
-            if (classCount > 0) {
-                statsHTML += `
-                    <div class="mt-3">
-                        <h6 class="mb-2">Class Distribution</h6>
-                        <div class="d-flex flex-wrap small">`;
+                        <span class="badge bg-info">${(metrics.recall || metrics['metrics/recall(B)']).toFixed(2)}</span>
+                    </div>` : ''}
+                </div>
                 
-                Object.entries(classesData).forEach(([id, name]) => {
-                    statsHTML += `
-                        <div class="me-2 mb-1">
-                            <span class="badge bg-secondary">${id}</span> ${name}
-                        </div>`;
-                });
-                
-                statsHTML += `</div></div>`;
-            }
+                <div class="mt-3">
+                    <h6 class="mb-2">Classes</h6>
+                    <div class="d-flex flex-wrap small">
+                        ${Object.entries(classesData).map(([id, name]) => 
+                            `<div class="me-2 mb-1">
+                                <span class="badge bg-secondary">${id}</span> ${name}
+                            </div>`
+                        ).join('')}
+                    </div>
+                </div>`;
             
-            classesStats.innerHTML = statsHTML;
-            console.log("Updated Class Statistics with real data");
+            console.log("[DEBUG] Updated Class Statistics with real data");
         }
     } else {
-        // If no real data is available, show an informative message
-        if (classesStats) {
-            classesStats.innerHTML = `
-                <div class="alert alert-info">
-                    <p><i class="bi bi-info-circle"></i> No hay datos de clases disponibles para este modelo.</p>
-                    <p class="small">Las estadísticas se mostrarán cuando el modelo incluya datos de clases.</p>
-                </div>`;
+        console.log("[DEBUG] No class data found in model_info.classes");
+        // Try to get class data from class_names directly in the API response
+        if (model.class_names) {
+            console.log("[DEBUG] Found class_names directly in model:", model.class_names);
+            
+            // Convert to appropriate format if it's an array
+            let classes = {};
+            if (Array.isArray(model.class_names)) {
+                model.class_names.forEach((name, index) => {
+                    classes[index] = name;
+                });
+            } else {
+                classes = model.class_names;
+            }
+            
+            if (classesStats) {
+                const classCount = Object.keys(classes).length;
+                
+                // Simplified format that shows the basic data
+                classesStats.innerHTML = `
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="fw-bold">Total Classes:</span>
+                            <span class="badge bg-primary">${classCount}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6 class="mb-2">Classes</h6>
+                        <div class="d-flex flex-wrap small">
+                            ${Object.entries(classes).map(([id, name]) => 
+                                `<div class="me-2 mb-1">
+                                    <span class="badge bg-secondary">${id}</span> ${name}
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>`;
+                
+                console.log("[DEBUG] Updated Class Statistics with class_names data");
+            }
+        } else {
+            // If no real data is available, show an informative message
+            if (classesStats) {
+                console.log("[DEBUG] No class data found at all, showing info message");
+                classesStats.innerHTML = `
+                    <div class="alert alert-info">
+                        <p><i class="bi bi-info-circle"></i> No hay datos de clases disponibles para este modelo.</p>
+                        <p class="small">Intente cargar el modelo en la sección de Detección para ver las estadísticas.</p>
+                    </div>`;
+            }
         }
     }
     
@@ -249,33 +276,19 @@ function renderModelDetails(model) {
     const classesContainer = document.getElementById('classesContainer');
     classesContainer.innerHTML = '';
     
-    // Always show debug info during troubleshooting
-    const debugInfo = document.getElementById('debugInfo');
-    const debugData = document.getElementById('debugData');
-    debugInfo.classList.remove('d-none');
-    
-    // Log comprehensive information about the model structure
-    console.log("Model data structure:", model);
-    console.log("Model info availability:", !!model.model_info);
-    console.log("Classes data locations:", {
-        "model.model_info.classes": model.model_info?.classes,
-        "model.classes": model.classes,
-        "model.model_info.names": model.model_info?.names
-    });
-    
     // Asegurarnos de tener datos de clases, buscando en todas las posibles ubicaciones
-    let classesData = null;
-    
-    if (model.model_info && model.model_info.classes && Object.keys(model.model_info.classes).length > 0) {
-        classesData = model.model_info.classes;
-        console.log("Using classes from model_info.classes");
-    } else if (model.classes && Object.keys(model.classes).length > 0) {
-        classesData = model.classes;
-        console.log("Using classes from direct model.classes");
-    } else if (model.model_info && model.model_info.names && Object.keys(model.model_info.names).length > 0) {
-        classesData = model.model_info.names;
-        console.log("Using classes from model_info.names");
+    if (classesData === null) {
+        // Variables para lógica de clases fuera del bloque principal
+        if (model.classes && Object.keys(model.classes).length > 0) {
+            classesData = model.classes;
+            console.log("[DEBUG] Using direct model.classes data");
+        } else if (model.model_info && model.model_info.names && Object.keys(model.model_info.names).length > 0) {
+            classesData = model.model_info.names;
+            console.log("[DEBUG] Using model_info.names data");
+        }
     }
+    
+    console.log("[DEBUG] Final classes data:", classesData);
     
     // Convert classesData to standard format if it's an array
     if (Array.isArray(classesData)) {
@@ -456,4 +469,32 @@ function formatFileSize(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Function to update download links
+function updateDownloadLinks(model) {
+    // Anteriormente, esto solo configuraba los botones con ID específicos
+    // document.getElementById('downloadPyTorch').href = model.path;
+    
+    // Ahora seleccionamos todos los enlaces que contienen "Download PyTorch" en su texto
+    const ptDownloadButtons = document.querySelectorAll('a.btn:not([id])[download]:has(i.bi-download)');
+    
+    ptDownloadButtons.forEach(button => {
+        if (button.textContent.includes('PyTorch')) {
+            button.href = model.path;
+        } else if (button.textContent.includes('ONNX')) {
+            if (model.has_onnx) {
+                button.href = model.onnx_path;
+                button.closest('.card')?.style.display = 'block';
+            } else {
+                button.closest('.card')?.style.display = 'none';
+            }
+        }
+    });
+    
+    // Mantener compatibilidad con el código anterior para los botones con IDs
+    const downloadPyTorch = document.getElementById('downloadPyTorch');
+    if (downloadPyTorch) {
+        downloadPyTorch.href = model.path;
+    }
 }
