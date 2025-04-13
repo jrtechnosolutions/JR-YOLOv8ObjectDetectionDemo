@@ -646,6 +646,9 @@
                 
                 // Función auxiliar para buscar un valor métrico en diferentes posibles ubicaciones
                 function getMetricValue(metricName) {
+                    console.log(`Searching for metric: ${metricName}`);
+                    console.log(`Model data:`, model);
+                    
                     // Lista de posibles nombres de clave para cada métrica
                     const possibleKeys = [
                         metricName,                                  // "precision"
@@ -656,38 +659,49 @@
                         `val/${metricName}`,                         // "val/precision" 
                         `test/${metricName}`,                        // "test/precision"
                         `validation/${metricName}`,                  // "validation/precision"
-                        `metrics/val_${metricName}`                  // "metrics/val_precision"
+                        `metrics/val_${metricName}`,                 // "metrics/val_precision"
+                        `results_dict/metrics/${metricName}(B)`      // "results_dict/metrics/precision(B)"
                     ];
                     
-                    // Buscar en el objeto metrics
-                    for (const key of possibleKeys) {
-                        if (metrics[key] !== undefined) {
-                            console.log(`Found metric ${metricName} at key ${key}:`, metrics[key]);
-                            return metrics[key];
-                        }
-                    }
-                    
-                    // Buscar en model.results si existe
-                    if (model.results) {
-                        for (const key of possibleKeys) {
-                            if (model.results[key] !== undefined) {
-                                console.log(`Found metric ${metricName} in results at key ${key}:`, model.results[key]);
-                                return model.results[key];
-                            }
-                        }
-                    }
-                    
-                    // Si no se encuentra en ningún lugar, buscar en todo el objeto model (búsqueda recursiva)
-                    function findInObject(obj, name, maxDepth = 3, currentDepth = 0) {
+                    // Función de búsqueda recursiva
+                    function searchForMetric(obj, name, path = "", maxDepth = 3, currentDepth = 0) {
+                        // Si no es un objeto o hemos llegado al límite de profundidad, retornar null
                         if (!obj || typeof obj !== 'object' || currentDepth > maxDepth) return null;
                         
-                        for (const key in obj) {
-                            if (possibleKeys.includes(key)) {
+                        console.log(`Searching at depth ${currentDepth}, path: ${path}`);
+                        
+                        // Buscar directamente todas las posibles claves
+                        for (const key of possibleKeys) {
+                            if (obj[key] !== undefined && typeof obj[key] !== 'object') {
+                                console.log(`Found exact match for ${name} at ${path}.${key}:`, obj[key]);
                                 return obj[key];
                             }
+                        }
+                        
+                        // Buscar claves que contengan el nombre de la métrica
+                        for (const key in obj) {
+                            if (typeof key === 'string') {
+                                // Comprobar si la clave contiene el nombre de la métrica
+                                const keyLower = key.toLowerCase();
+                                const nameLower = name.toLowerCase();
+                                
+                                if ((keyLower.includes(nameLower) || 
+                                    nameLower.includes(keyLower)) && 
+                                    typeof obj[key] !== 'object') {
+                                    console.log(`Found partial match for ${name} at ${path}.${key}:`, obj[key]);
+                                    return obj[key];
+                                }
+                            }
                             
+                            // Recursión para objetos anidados
                             if (typeof obj[key] === 'object' && obj[key] !== null) {
-                                const result = findInObject(obj[key], name, maxDepth, currentDepth + 1);
+                                const result = searchForMetric(
+                                    obj[key], 
+                                    name, 
+                                    path ? `${path}.${key}` : key,
+                                    maxDepth, 
+                                    currentDepth + 1
+                                );
                                 if (result !== null) return result;
                             }
                         }
@@ -695,42 +709,58 @@
                         return null;
                     }
                     
-                    const deepSearchResult = findInObject(model, metricName);
-                    if (deepSearchResult !== null) {
-                        console.log(`Found ${metricName} in deep search:`, deepSearchResult);
-                        return deepSearchResult;
+                    // Buscar en el objeto metrics directamente
+                    if (metrics) {
+                        for (const key of possibleKeys) {
+                            if (metrics[key] !== undefined) {
+                                console.log(`Direct match for ${metricName} at metrics.${key}:`, metrics[key]);
+                                return metrics[key];
+                            }
+                        }
                     }
                     
-                    // Si no se encuentra en ningún lugar, usar valores sensatos por defecto
-                    const defaults = {
-                        'precision': 0.85,
-                        'recall': 0.83,
-                        'mAP50': 0.88,
-                        'mAP50-95': 0.67
-                    };
+                    // Realizar búsqueda recursiva completa
+                    const result = searchForMetric(model, metricName);
+                    if (result !== null) {
+                        return result;
+                    }
                     
-                    return defaults[metricName] || 0;
+                    // Último intento: buscar en resultados de CSV
+                    if (model.metrics_csv && Array.isArray(model.metrics_csv)) {
+                        for (const row of model.metrics_csv) {
+                            for (const key in row) {
+                                if (possibleKeys.some(pk => key.includes(pk))) {
+                                    console.log(`Found in CSV data, key ${key}:`, row[key]);
+                                    return row[key];
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Si no se encuentra en ningún lugar, indicar que no está disponible
+                    console.warn(`Metric ${metricName} not found anywhere in model data`);
+                    return 'N/A'; // Indicar que la métrica no está disponible
                 }
                 
                 const performanceMetrics = [
                     { 
                         label: 'Precision', 
-                        value: parseFloat(getMetricValue('precision')).toFixed(4),
+                        value: getMetricValue('precision'),
                         tooltip: 'Percentage of detections that are correct. A high value means the model has few false positives.'
                     },
                     { 
                         label: 'Recall', 
-                        value: parseFloat(getMetricValue('recall')).toFixed(4),
+                        value: getMetricValue('recall'),
                         tooltip: 'Percentage of actual objects that were detected. A high value means the model finds most objects.'
                     },
                     { 
                         label: 'mAP50', 
-                        value: parseFloat(getMetricValue('mAP50')).toFixed(4),
+                        value: getMetricValue('mAP50'),
                         tooltip: 'Mean Average Precision with IoU threshold of 0.5. Standard metric for evaluating object detection models.'
                     },
                     { 
                         label: 'mAP50-95', 
-                        value: parseFloat(getMetricValue('mAP50-95')).toFixed(4),
+                        value: getMetricValue('mAP50-95'),
                         tooltip: 'Average of mAP across different IoU thresholds (0.5-0.95). More rigorous metric that evaluates precise localization.'
                     }
                 ];
@@ -742,18 +772,20 @@
                     
                     // Determinar el color de la insignia según el valor numérico
                     let badgeClass = 'bg-warning';  // Default color
-                    const value = parseFloat(item.value);
-                    if (value > 0.8) {
+                    const value = item.value;
+                    if (value === 'N/A') {
+                        badgeClass = 'bg-secondary';  // Indicar que no hay valor disponible
+                    } else if (parseFloat(value) > 0.8) {
                         badgeClass = 'bg-success';  // Good performance
-                    } else if (value > 0.5) {
+                    } else if (parseFloat(value) > 0.5) {
                         badgeClass = 'bg-info';     // Medium performance
-                    } else if (value > 0) {
+                    } else if (parseFloat(value) > 0) {
                         badgeClass = 'bg-warning';  // Poor performance
                     }
                     
                     li.innerHTML = `
                         <span data-bs-toggle="tooltip" data-bs-placement="left" 
-                              title="${item.tooltip || ''}">${item.label}</span>
+                              title="${item.tooltip}">${item.label}</span>
                         <span class="badge ${badgeClass} rounded-pill">${item.value}</span>
                     `;
                     performanceList.appendChild(li);
