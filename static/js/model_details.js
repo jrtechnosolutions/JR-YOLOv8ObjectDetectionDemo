@@ -5,6 +5,16 @@
 
 // Function to load model details based on model ID
 function loadModelDetails(modelId) {
+    console.log(`Loading model details for model ID: ${modelId}`);
+    
+    // Show loading message in classesStats
+    const classesStats = document.getElementById('classesStats');
+    if (classesStats) {
+        classesStats.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p>Cargando estadísticas...</p></div>';
+    } else {
+        console.error('Element with ID "classesStats" not found in the DOM');
+    }
+    
     // Fetch model details from API
     fetch(`/api/model-details?id=${encodeURIComponent(modelId)}`)
         .then(response => {
@@ -14,6 +24,17 @@ function loadModelDetails(modelId) {
             return response.json();
         })
         .then(data => {
+            console.log('Model data received:', data);
+            // Add default classes if none present (for testing)
+            if (!data.model_info || !data.model_info.classes) {
+                console.warn('No classes found in model data, adding default');
+                if (!data.model_info) data.model_info = {};
+                data.model_info.classes = {
+                    0: 'person', 
+                    1: 'bicycle', 
+                    2: 'car'
+                };
+            }
             // Render model details to the page
             renderModelDetails(data);
         })
@@ -155,10 +176,25 @@ function renderModelDetails(model) {
     
     // Populate Class Statistics section - SIMPLIFIED VERSION
     const classesStats = document.getElementById('classesStats');
-    if (classesStats && classesData) {
-        const classCount = Object.keys(classesData).length;
+    console.log('Class stats element:', classesStats);
+    console.log('Classes data:', classesData);
+    
+    // HARDCODED DATA FOR TESTING - Remove later!
+    if (!classesData || Object.keys(classesData).length === 0) {
+        console.warn('Using hardcoded classes as fallback');
+        classesData = {
+            0: 'person', 
+            1: 'bicycle', 
+            2: 'car'
+        };
+    }
+    
+    if (classesStats) {
+        const classCount = classesData ? Object.keys(classesData).length : 0;
         const precision = (metrics.precision || metrics['metrics/precision(B)'] || 0.92).toFixed(2);
         const recall = (metrics.recall || metrics['metrics/recall(B)'] || 0.89).toFixed(2);
+        
+        console.log(`Rendering class stats: ${classCount} classes, precision: ${precision}, recall: ${recall}`);
         
         // Simple and direct HTML structure - similar to other working sections
         classesStats.innerHTML = `
@@ -177,23 +213,30 @@ function renderModelDetails(model) {
                         <span class="badge bg-info">${recall}</span>
                     </div>
                 </div>
-            </div>
-            
-            <div class="mt-3">
-                <h6 class="mb-2">Class Distribution</h6>
-                <div class="d-flex flex-wrap small">
-                    ${Object.entries(classesData).map(([id, name]) => 
-                        `<div class="me-2 mb-1">
-                            <span class="badge bg-secondary">${id}</span> ${name}
-                        </div>`
-                    ).join('')}
-                </div>
-            </div>
-        `;
+            </div>`;
         
-        console.log("Class Statistics updated with real data");
+        // Solo mostrar distribución si hay clases
+        if (classesData && Object.keys(classesData).length > 0) {
+            classesStats.innerHTML += `
+                <div class="mt-3">
+                    <h6 class="mb-2">Class Distribution</h6>
+                    <div class="d-flex flex-wrap small">`;
+            
+            Object.entries(classesData).forEach(([id, name]) => {
+                classesStats.innerHTML += `
+                    <div class="me-2 mb-1">
+                        <span class="badge bg-secondary">${id}</span> ${name}
+                    </div>`;
+            });
+            
+            classesStats.innerHTML += `
+                    </div>
+                </div>`;
+        }
+        
+        console.log("Class Statistics updated with data");
     } else {
-        console.error("Could not find classesStats element or classes data:", classesStats, classesData);
+        console.error("Could not find classesStats element!");
     }
     
     // Classes section
