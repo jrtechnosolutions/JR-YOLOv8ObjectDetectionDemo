@@ -450,13 +450,36 @@ for r in results:
 <script>
     // Initialize the page with the model ID from the URL
     document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOMContentLoaded event fired");
+        
+        // Intentar obtener modelId de dos formas posibles
+        let modelId = null;
+        
+        // 1. Intentar desde los parámetros de búsqueda en la URL (formato ?id=modelo)
         const urlParams = new URLSearchParams(window.location.search);
-        const modelId = urlParams.get('id');
+        modelId = urlParams.get('id');
+        
+        // 2. Si no hay parámetro id, intentar extraerlo del path de la URL (formato /model/nombre_modelo)
+        if (!modelId) {
+            const pathParts = window.location.pathname.split('/');
+            if (pathParts.length > 2 && pathParts[1] === 'model') {
+                modelId = pathParts[2];
+                console.log("Extracted model ID from URL path:", modelId);
+            }
+        }
         
         if (modelId) {
+            console.log("Loading model with ID:", modelId);
             loadModelDetails(modelId);
         } else {
             console.error('No model ID provided in URL');
+            document.querySelector('.container').innerHTML = `
+                <div class="alert alert-danger">
+                    <h4><i class="bi bi-exclamation-triangle"></i> Error: No se encontró el ID del modelo</h4>
+                    <p>No se pudo encontrar el ID del modelo en la URL.</p>
+                    <a href="/training" class="btn btn-outline-danger mt-3">Volver a Training</a>
+                </div>
+            `;
         }
     });
     
