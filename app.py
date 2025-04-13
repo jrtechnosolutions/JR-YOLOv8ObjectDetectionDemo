@@ -1064,30 +1064,16 @@ def api_list_models():
                             rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
                             training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
                     
+                    # Extract metrics using our metrics_utils module
+                    metrics_extractor = metrics_utils.ModelMetricsExtractor(app.config['MODELS_FOLDER'], model_name)
+                    real_metrics = metrics_extractor.get_all_metrics()
+                    
+                    # Log the metrics for debugging
+                    print(f"Final metrics for model {model_name}: {real_metrics}")
+                    
                     # Check for ONNX model
                     onnx_path = model_path.replace('.pt', '.onnx')
                     has_onnx = os.path.exists(onnx_path)
-                    
-                    # Read metrics
-                    metrics = {}
-                    csv_path = os.path.join(model_dir, 'results.csv')
-                    if os.path.exists(csv_path):
-                        try:
-                            with open(csv_path, 'r') as f:
-                                lines = f.readlines()
-                                if len(lines) >= 2:
-                                    header = lines[0].strip().split(',')
-                                    last_row = lines[-1].strip().split(',')
-                                    
-                                    for i, key in enumerate(header):
-                                        if i < len(last_row):
-                                            try:
-                                                metrics[key] = float(last_row[i])
-                                            except (ValueError, TypeError):
-                                                metrics[key] = last_row[i]
-                                    print(f"Loaded metrics from CSV")
-                        except Exception as e:
-                            print(f"Error reading metrics: {e}")
                     
                     # Extract class names
                     model_info = {
@@ -1123,7 +1109,7 @@ def api_list_models():
                         'onnx_path': url_for('static', filename=f'models/{os.path.relpath(onnx_path, app.config["MODELS_FOLDER"])}') if has_onnx else None,
                         'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S'),
                         'training_files': training_files,
-                        'metrics': metrics,
+                        'metrics': real_metrics,  # Use the real metrics
                         'model_info': model_info,
                         'model_dir': os.path.relpath(model_dir, app.config['MODELS_FOLDER']),
                         'is_best': 'best' in model_file
@@ -1202,30 +1188,16 @@ def api_list_models():
                                 rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
                                 training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
                     
+                    # Extract metrics using our metrics_utils module
+                    metrics_extractor = metrics_utils.ModelMetricsExtractor(app.config['MODELS_FOLDER'], model_name)
+                    real_metrics = metrics_extractor.get_all_metrics()
+                    
+                    # Log the metrics for debugging
+                    print(f"Final metrics for model {model_name}: {real_metrics}")
+                    
                     # Check for ONNX model
                     onnx_path = model_path.replace('.pt', '.onnx')
                     has_onnx = os.path.exists(onnx_path)
-                    
-                    # Read metrics
-                    metrics = {}
-                    csv_path = os.path.join(model_dir, 'results.csv')
-                    if os.path.exists(csv_path):
-                        try:
-                            with open(csv_path, 'r') as f:
-                                lines = f.readlines()
-                                if len(lines) >= 2:
-                                    header = lines[0].strip().split(',')
-                                    last_row = lines[-1].strip().split(',')
-                                    
-                                    for i, key in enumerate(header):
-                                        if i < len(last_row):
-                                            try:
-                                                metrics[key] = float(last_row[i])
-                                            except (ValueError, TypeError):
-                                                metrics[key] = last_row[i]
-                                    print(f"Loaded metrics from CSV")
-                        except Exception as e:
-                            print(f"Error reading metrics: {e}")
                     
                     # Extract class names
                     model_info = {
@@ -1261,7 +1233,7 @@ def api_list_models():
                         'onnx_path': url_for('static', filename=f'models/{os.path.relpath(onnx_path, app.config["MODELS_FOLDER"])}') if has_onnx else None,
                         'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S'),
                         'training_files': training_files,
-                        'metrics': metrics,
+                        'metrics': real_metrics,  # Use the real metrics
                         'model_info': model_info,
                         'model_dir': os.path.relpath(model_dir, app.config['MODELS_FOLDER'])
                     })
