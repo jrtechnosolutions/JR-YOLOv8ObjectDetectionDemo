@@ -188,47 +188,30 @@
                 <h2><i class="bi bi-tags"></i> Detection Classes</h2>
                 <p>The classes this model can detect are listed below. Each class has a unique ID that is used in the model's output.</p>
                 
-                <!-- Static hardcoded classes display -->
+                <!-- Dynamic classes display -->
                 <div class="row">
-                    <!-- Class 0 -->
+                    {% for class_name in class_names %}
                     <div class="col-md-6 mb-4">
                         <div class="card h-100">
                             <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">Object Class 0</h5>
+                                <h5 class="mb-0">{{ class_name }} (Class {{ loop.index0 }})</h5>
                             </div>
                             <div class="card-body">
-                                <h6 class="card-title">class0</h6>
+                                <h6 class="card-title">{{ class_name }}</h6>
                                 <p class="card-text">
-                                    This class represents the first type of objects that the model has been trained to detect.
-                                    It corresponds to the first category in your training dataset.
+                                    This class represents objects of type "{{ class_name }}" that the model has been trained to detect.
+                                    {% if class_name == "COLUMPIO" %}
+                                    This is a swing in Spanish.
+                                    {% endif %}
                                 </p>
                                 <div class="d-flex justify-content-between">
-                                    <span class="badge bg-dark mb-2">Class ID: 0</span>
+                                    <span class="badge bg-dark mb-2">Class ID: {{ loop.index0 }}</span>
                                     <span class="badge bg-success mb-2">Detection Confidence: High</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Class 1 -->
-                    <div class="col-md-6 mb-4">
-                        <div class="card h-100">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">Object Class 1</h5>
-                            </div>
-                            <div class="card-body">
-                                <h6 class="card-title">class1</h6>
-                                <p class="card-text">
-                                    This class represents the second type of objects that the model has been trained to detect.
-                                    It corresponds to the second category in your training dataset.
-                                </p>
-                                <div class="d-flex justify-content-between">
-                                    <span class="badge bg-dark mb-2">Class ID: 1</span>
-                                    <span class="badge bg-success mb-2">Detection Confidence: High</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
 
                 <div class="row mb-4">

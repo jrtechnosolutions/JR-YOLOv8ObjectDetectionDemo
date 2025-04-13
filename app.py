@@ -1326,7 +1326,60 @@ def model_details(model_id):
     """
     Render the detailed view page for a specific model
     """
-    return render_template('model_details.html')
+    # Get models directory
+    models_dir = os.path.join('static', 'uploads', 'models')
+    model_path = os.path.join(models_dir, model_id)
+    
+    # Try to get class names from data.yaml
+    class_names = []
+    
+    try:
+        # First check in the model's directory
+        yaml_path = os.path.join(model_path, 'data.yaml')
+        if os.path.exists(yaml_path):
+            with open(yaml_path, 'r') as f:
+                yaml_data = yaml.safe_load(f)
+                if 'names' in yaml_data and isinstance(yaml_data['names'], list):
+                    class_names = yaml_data['names']
+                    print(f"Found classes in {yaml_path}: {class_names}")
+        
+        # If no classes found, try looking in the dataset directory
+        if not class_names:
+            dataset_dir = os.path.join('static', 'datasets')
+            if os.path.exists(dataset_dir):
+                for dataset_name in os.listdir(dataset_dir):
+                    dataset_path = os.path.join(dataset_dir, dataset_name)
+                    if os.path.isdir(dataset_path):
+                        dataset_yaml = os.path.join(dataset_path, 'data.yaml')
+                        if os.path.exists(dataset_yaml):
+                            with open(dataset_yaml, 'r') as f:
+                                yaml_data = yaml.safe_load(f)
+                                if 'names' in yaml_data and isinstance(yaml_data['names'], list):
+                                    class_names = yaml_data['names']
+                                    print(f"Found classes in {dataset_yaml}: {class_names}")
+                                    break
+    except Exception as e:
+        app.logger.error(f"Error reading class names: {e}")
+    
+    # Get model metadata if available
+    model_info = {}
+    model_info_path = os.path.join(model_path, 'model_info.json')
+    if os.path.exists(model_info_path):
+        try:
+            with open(model_info_path, 'r') as f:
+                model_info = json.load(f)
+        except Exception as e:
+            app.logger.error(f"Error reading model info: {e}")
+    
+    # If still no classes found, use default classes
+    if not class_names:
+        class_names = ["CHILD", "COLUMPIO"]
+        app.logger.warning(f"Using default classes for model {model_id}")
+    
+    return render_template('model_details.html', 
+                           model_id=model_id,
+                           model_info=model_info,
+                           class_names=class_names)
 
 @app.route('/api/model-details')
 def api_model_details():
