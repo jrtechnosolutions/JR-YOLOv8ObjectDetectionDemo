@@ -371,15 +371,46 @@ function renderModelDetails(model) {
     `;
     
     // Set download links
-    document.getElementById('downloadPyTorch').href = model.path;
+    // Anteriormente, esto solo configuraba los botones con ID específicos
+    // document.getElementById('downloadPyTorch').href = model.path;
+    
+    // Ahora seleccionamos todos los enlaces que contienen "Download PyTorch" en su texto
+    const ptDownloadButtons = document.querySelectorAll('a.btn:not([id])[download]:has(i.bi-download)');
+    
+    ptDownloadButtons.forEach(button => {
+        if (button.textContent.includes('PyTorch')) {
+            button.href = model.path;
+        } else if (button.textContent.includes('ONNX')) {
+            if (model.has_onnx) {
+                button.href = model.onnx_path;
+                button.closest('.card')?.style.display = 'block';
+            } else {
+                button.closest('.card')?.style.display = 'none';
+            }
+        }
+    });
+    
+    // Mantener compatibilidad con el código anterior para los botones con IDs
+    const downloadPyTorch = document.getElementById('downloadPyTorch');
+    if (downloadPyTorch) {
+        downloadPyTorch.href = model.path;
+    }
     
     // Check if ONNX model is available
     const onnxCard = document.getElementById('onnxCard');
+    const downloadONNX = document.getElementById('downloadONNX');
+    
     if (model.has_onnx) {
-        document.getElementById('downloadONNX').href = model.onnx_path;
-        onnxCard.style.display = 'block';
+        if (downloadONNX) {
+            downloadONNX.href = model.onnx_path;
+        }
+        if (onnxCard) {
+            onnxCard.style.display = 'block';
+        }
     } else {
-        onnxCard.style.display = 'none';
+        if (onnxCard) {
+            onnxCard.style.display = 'none';
+        }
     }
 }
 
