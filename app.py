@@ -1331,9 +1331,21 @@ def model_details(model_id):
     """
     Render the detailed view page for a specific model
     """
+    app.logger.info(f"====== INICIANDO BÚSQUEDA DE MÉTRICAS PARA MODELO: {model_id} ======")
+    
     # Get models directory
     models_dir = os.path.join('static', 'uploads', 'models')
     model_path = os.path.join(models_dir, model_id)
+    
+    # Check if model_path exists
+    if not os.path.exists(model_path):
+        app.logger.warning(f"El directorio del modelo no existe en: {model_path}")
+        # Try alternative location
+        model_path = os.path.join('static', 'models', model_id)
+        if os.path.exists(model_path):
+            app.logger.info(f"Usando directorio alternativo: {model_path}")
+        else:
+            app.logger.warning(f"El directorio alternativo tampoco existe: {model_path}")
     
     # Try to get class names from data.yaml
     class_names = []
@@ -1341,16 +1353,20 @@ def model_details(model_id):
     try:
         # First check in the model's directory
         yaml_path = os.path.join(model_path, 'data.yaml')
+        app.logger.info(f"Buscando clases en: {yaml_path}")
         if os.path.exists(yaml_path):
             with open(yaml_path, 'r') as f:
                 yaml_data = yaml.safe_load(f)
                 if 'names' in yaml_data and isinstance(yaml_data['names'], list):
                     class_names = yaml_data['names']
-                    print(f"Found classes in {yaml_path}: {class_names}")
+                    app.logger.info(f"Encontradas clases en {yaml_path}: {class_names}")
+        else:
+            app.logger.warning(f"No se encontró archivo data.yaml en {yaml_path}")
         
         # If no classes found, try looking in the dataset directory
         if not class_names:
             dataset_dir = os.path.join('static', 'datasets')
+            app.logger.info(f"Buscando clases en directorios de datasets: {dataset_dir}")
             if os.path.exists(dataset_dir):
                 for dataset_name in os.listdir(dataset_dir):
                     dataset_path = os.path.join(dataset_dir, dataset_name)
@@ -1361,25 +1377,33 @@ def model_details(model_id):
                                 yaml_data = yaml.safe_load(f)
                                 if 'names' in yaml_data and isinstance(yaml_data['names'], list):
                                     class_names = yaml_data['names']
-                                    print(f"Found classes in {dataset_yaml}: {class_names}")
+                                    app.logger.info(f"Encontradas clases en {dataset_yaml}: {class_names}")
                                     break
+            else:
+                app.logger.warning(f"Directorio de datasets no encontrado: {dataset_dir}")
     except Exception as e:
-        app.logger.error(f"Error reading class names: {e}")
+        app.logger.error(f"Error al leer nombres de clases: {e}")
     
     # Get model metadata if available
     model_info = {}
     model_info_path = os.path.join(model_path, 'model_info.json')
+    app.logger.info(f"Buscando información del modelo en: {model_info_path}")
     if os.path.exists(model_info_path):
         try:
             with open(model_info_path, 'r') as f:
                 model_info = json.load(f)
+                app.logger.info(f"Información del modelo cargada. Claves: {list(model_info.keys())}")
+                if 'metrics' in model_info:
+                    app.logger.info(f"Métricas encontradas en model_info: {model_info['metrics']}")
         except Exception as e:
-            app.logger.error(f"Error reading model info: {e}")
+            app.logger.error(f"Error al leer información del modelo: {e}")
+    else:
+        app.logger.warning(f"Archivo model_info.json no encontrado en {model_info_path}")
     
     # If still no classes found, use default classes
     if not class_names:
         class_names = ["CHILD", "COLUMPIO"]
-        app.logger.warning(f"Using default classes for model {model_id}")
+        app.logger.warning(f"Usando clases predeterminadas para el modelo {model_id}")
     
     # Función auxiliar para buscar métricas en diferentes posibles ubicaciones y formatos
     def find_metric_value(metric_name, data_sources):
@@ -1391,6 +1415,8 @@ def model_details(model_id):
         Returns:
             El valor de la métrica si se encuentra, o 0.0 si no se encuentra
         """
+        app.logger.info(f"Buscando métrica: {metric_name}")
+        
         # Lista de posibles nombres de clave para cada métrica
         possible_keys = [
             metric_name,                      # "precision"
@@ -1404,69 +1430,103 @@ def model_details(model_id):
             f"metrics/val_{metric_name}"      # "metrics/val_precision"
         ]
         
+        app.logger.info(f"Buscando usando claves: {possible_keys}")
+        app.logger.info(f"Número de fuentes de datos: {len(data_sources)}")
+        
         # Buscar en cada fuente de datos proporcionada
-        for data_source in data_sources:
+        for i, data_source in enumerate(data_sources):
             if not data_source:
+                app.logger.warning(f"Fuente de datos {i+1} está vacía o es None")
                 continue
+                
+            app.logger.info(f"Buscando en fuente de datos {i+1}. Tipo: {type(data_source)}. Claves: {list(data_source.keys()) if isinstance(data_source, dict) else 'No es un diccionario'}")
                 
             # Buscar con cada posible nombre de clave
             for key in possible_keys:
                 if key in data_source:
-                    app.logger.info(f"Found {metric_name} at key {key}: {data_source[key]}")
+                    app.logger.info(f"¡ENCONTRADO! Métrica {metric_name} en clave {key}: {data_source[key]}")
                     return float(data_source[key])
                     
             # Si hay una clave de metrics anidada, buscar también allí
             if 'metrics' in data_source and isinstance(data_source['metrics'], dict):
+                app.logger.info(f"Encontrada sección metrics anidada. Claves: {list(data_source['metrics'].keys())}")
                 for key in possible_keys:
                     if key in data_source['metrics']:
-                        app.logger.info(f"Found {metric_name} in nested metrics at key {key}: {data_source['metrics'][key]}")
+                        app.logger.info(f"¡ENCONTRADO EN METRICS ANIDADO! Métrica {metric_name} en clave {key}: {data_source['metrics'][key]}")
                         return float(data_source['metrics'][key])
         
         # Si llegamos aquí, no se encontró la métrica
-        app.logger.warning(f"Metric {metric_name} not found in any data source")
+        app.logger.warning(f"Métrica {metric_name} no encontrada en ninguna fuente de datos")
         return 0.0
     
     # Recolectar todas las posibles fuentes de datos que podrían contener métricas
     data_sources = []
     
+    # Ruta del modelo PT
+    pt_model_path = os.path.join('static', 'models', f"{model_id}.pt")
+    app.logger.info(f"Verificando si existe modelo PT en: {pt_model_path}")
+    if os.path.exists(pt_model_path):
+        app.logger.info(f"Archivo de modelo PT encontrado: {pt_model_path}")
+    else:
+        app.logger.warning(f"Archivo de modelo PT no encontrado: {pt_model_path}")
+    
     # Check for metrics.json
     metrics_path = os.path.join(model_path, 'metrics.json')
+    app.logger.info(f"Buscando archivo de métricas en: {metrics_path}")
     if os.path.exists(metrics_path):
         try:
             with open(metrics_path, 'r') as f:
                 metrics = json.load(f)
                 data_sources.append(metrics)
-                app.logger.info(f"Loaded metrics from {metrics_path}")
+                app.logger.info(f"Métricas cargadas desde {metrics_path}. Claves: {list(metrics.keys())}")
         except Exception as e:
-            app.logger.error(f"Error reading metrics from {metrics_path}: {e}")
+            app.logger.error(f"Error al leer métricas desde {metrics_path}: {e}")
+    else:
+        app.logger.warning(f"Archivo metrics.json no encontrado en {metrics_path}")
     
     # Check for results.json
     results_path = os.path.join(model_path, 'results.json')
+    app.logger.info(f"Buscando archivo de resultados en: {results_path}")
     if os.path.exists(results_path):
         try:
             with open(results_path, 'r') as f:
                 results = json.load(f)
                 data_sources.append(results)
-                app.logger.info(f"Loaded results from {results_path}")
+                app.logger.info(f"Resultados cargados desde {results_path}. Claves: {list(results.keys())}")
         except Exception as e:
-            app.logger.error(f"Error reading results from {results_path}: {e}")
+            app.logger.error(f"Error al leer resultados desde {results_path}: {e}")
+    else:
+        app.logger.warning(f"Archivo results.json no encontrado en {results_path}")
     
     # Check for any files in a results directory
     results_dir = os.path.join(model_path, 'results')
+    app.logger.info(f"Buscando directorio de resultados en: {results_dir}")
     if os.path.exists(results_dir) and os.path.isdir(results_dir):
+        app.logger.info(f"Directorio de resultados encontrado. Contenido: {os.listdir(results_dir)}")
         for file_name in os.listdir(results_dir):
             if file_name.endswith('.json'):
                 try:
-                    with open(os.path.join(results_dir, file_name), 'r') as f:
+                    file_path = os.path.join(results_dir, file_name)
+                    app.logger.info(f"Analizando archivo: {file_path}")
+                    with open(file_path, 'r') as f:
                         data = json.load(f)
                         data_sources.append(data)
-                        app.logger.info(f"Loaded data from {os.path.join(results_dir, file_name)}")
+                        app.logger.info(f"Datos cargados desde {file_path}. Claves: {list(data.keys())}")
                 except Exception as e:
-                    app.logger.error(f"Error reading data from {file_name}: {e}")
+                    app.logger.error(f"Error al leer datos desde {file_name}: {e}")
+    else:
+        app.logger.warning(f"Directorio de resultados no encontrado: {results_dir}")
     
     # Add model_info to data sources if it's not empty
     if model_info:
         data_sources.append(model_info)
+        app.logger.info("Añadida información del modelo a las fuentes de datos")
+    
+    # Verify that we have data sources to search
+    if not data_sources:
+        app.logger.warning("No se encontraron fuentes de datos para buscar métricas. Se usarán valores predeterminados.")
+    else:
+        app.logger.info(f"Total de fuentes de datos a buscar: {len(data_sources)}")
     
     # Buscar las métricas usando la función auxiliar
     precision = find_metric_value('precision', data_sources)
@@ -1474,28 +1534,39 @@ def model_details(model_id):
     map50 = find_metric_value('mAP50', data_sources)
     map50_95 = find_metric_value('mAP50-95', data_sources)
     
-    # Si no se encuentran métricas, usar valores predeterminados
+    # Registrar si estamos usando métricas reales o predeterminadas
     if precision == 0.0:
         precision = 0.92
-        app.logger.warning(f"No precision metrics found for model {model_id}, using default value")
+        app.logger.warning(f"No se encontraron métricas de precisión para el modelo {model_id}, usando valor predeterminado")
+    else:
+        app.logger.info(f"Usando valor de precisión real: {precision}")
     
     if recall == 0.0:
         recall = 0.89
-        app.logger.warning(f"No recall metrics found for model {model_id}, using default value")
+        app.logger.warning(f"No se encontraron métricas de exhaustividad para el modelo {model_id}, usando valor predeterminado")
+    else:
+        app.logger.info(f"Usando valor de exhaustividad real: {recall}")
     
     if map50 == 0.0:
         map50 = 0.88
-        app.logger.warning(f"No mAP50 metrics found for model {model_id}, using default value")
+        app.logger.warning(f"No se encontraron métricas de mAP50 para el modelo {model_id}, usando valor predeterminado")
+    else:
+        app.logger.info(f"Usando valor de mAP50 real: {map50}")
     
     if map50_95 == 0.0:
         map50_95 = 0.67
-        app.logger.warning(f"No mAP50-95 metrics found for model {model_id}, using default value")
+        app.logger.warning(f"No se encontraron métricas de mAP50-95 para el modelo {model_id}, usando valor predeterminado")
+    else:
+        app.logger.info(f"Usando valor de mAP50-95 real: {map50_95}")
     
     # Format with 2 decimal places
     precision = round(float(precision), 2)
     recall = round(float(recall), 2)
     map50 = round(float(map50), 2)
     map50_95 = round(float(map50_95), 2)
+    
+    app.logger.info(f"====== BÚSQUEDA DE MÉTRICAS FINALIZADA ======")
+    app.logger.info(f"Valores finales - Precision: {precision}, Recall: {recall}, mAP50: {map50}, mAP50-95: {map50_95}")
     
     return render_template('model_details.html', 
                            model_id=model_id,
