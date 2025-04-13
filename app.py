@@ -1,20 +1,34 @@
 import os
-import io
+import sys
+import json
 import yaml
-import uuid
-import zipfile
-import shutil
-import threading
 import time
-from datetime import datetime
-from PIL import Image
+import logging
+import datetime
+import zipfile
+import uuid
+import glob
+import shutil
 import numpy as np
 import cv2
-import torch
-from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, send_file, flash, session
+import base64
+from datetime import datetime
+from flask import Flask, render_template, redirect, request, jsonify, send_from_directory, url_for
 from werkzeug.utils import secure_filename
-import requests
+
+# Importar nuestros módulos de utilidades
+from utils import yaml_utils, model_utils, metrics_utils
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+
+import io
+import threading
+import torch
+from PIL import Image
 from ultralytics import YOLO
+import requests
+from flask import Response, flash, session
 
 # Create Flask app
 app = Flask(__name__)
@@ -1329,7 +1343,8 @@ def model_classes(model_id):
 @app.route('/model/<model_id>')
 def model_details(model_id):
     """
-    Render the detailed view page for a specific model
+    Render the detailed view page for a specific model.
+    Utiliza las utilidades modulares para extraer información del modelo.
     """
     app.logger.info(f"====== INICIANDO BÚSQUEDA DE MÉTRICAS PARA MODELO: {model_id} ======")
     
@@ -1337,237 +1352,67 @@ def model_details(model_id):
     clean_model_id = model_id.replace(" (last)", "")
     app.logger.info(f"ID del modelo original: {model_id}, ID del modelo limpio: {clean_model_id}")
     
-    # Get models directory
+    # Obtener directorios de modelos
     models_dir = os.path.join('static', 'uploads', 'models')
     model_path = os.path.join(models_dir, clean_model_id)
     
-    # Check if model_path exists
+    # Verificar si model_path existe
     if not os.path.exists(model_path):
         app.logger.warning(f"El directorio del modelo no existe en: {model_path}")
-        # Try alternative location
+        # Probar ubicación alternativa
         model_path = os.path.join('static', 'models', clean_model_id)
         if os.path.exists(model_path):
             app.logger.info(f"Usando directorio alternativo: {model_path}")
         else:
             app.logger.warning(f"El directorio alternativo tampoco existe: {model_path}")
     
-    # Try to get class names from data.yaml
+    # Extraer nombres de clases utilizando model_utils
+    app.logger.info(f"Extrayendo nombres de clases para el modelo: {clean_model_id}")
     class_names = []
     
-    try:
-        # First check in the model's directory
-        yaml_path = os.path.join(model_path, 'data.yaml')
-        app.logger.info(f"Buscando clases en: {yaml_path}")
-        if os.path.exists(yaml_path):
-            with open(yaml_path, 'r') as f:
-                yaml_data = yaml.safe_load(f)
-                if 'names' in yaml_data and isinstance(yaml_data['names'], list):
-                    class_names = yaml_data['names']
-                    app.logger.info(f"Encontradas clases en {yaml_path}: {class_names}")
+    # Ubicación del archivo PT
+    pt_model_path = os.path.join('static', 'models', f"{clean_model_id}.pt")
+    
+    # Utilizar la función para extraer clases desde diferentes fuentes
+    classes_dict = model_utils.extract_class_names(pt_model_path, models_dir, clean_model_id)
+    if classes_dict:
+        # Convertir a lista si es necesario para compatibilidad con código existente
+        if isinstance(classes_dict, dict):
+            # Si las claves son numéricas, convertimos el diccionario a lista ordenada
+            try:
+                max_idx = max([int(k) if isinstance(k, str) and k.isdigit() else k for k in classes_dict.keys()])
+                class_names = ["" for _ in range(max_idx + 1)]
+                for k, v in classes_dict.items():
+                    idx = int(k) if isinstance(k, str) and k.isdigit() else k
+                    class_names[idx] = v
+            except (ValueError, TypeError):
+                # Si las claves no son numéricas, solo tomamos los valores
+                class_names = list(classes_dict.values())
         else:
-            app.logger.warning(f"No se encontró archivo data.yaml en {yaml_path}")
-        
-        # If no classes found, try looking in the dataset directory
-        if not class_names:
-            dataset_dir = os.path.join('static', 'datasets')
-            app.logger.info(f"Buscando clases en directorios de datasets: {dataset_dir}")
-            if os.path.exists(dataset_dir):
-                for dataset_name in os.listdir(dataset_dir):
-                    dataset_path = os.path.join(dataset_dir, dataset_name)
-                    if os.path.isdir(dataset_path):
-                        dataset_yaml = os.path.join(dataset_path, 'data.yaml')
-                        if os.path.exists(dataset_yaml):
-                            with open(dataset_yaml, 'r') as f:
-                                yaml_data = yaml.safe_load(f)
-                                if 'names' in yaml_data and isinstance(yaml_data['names'], list):
-                                    class_names = yaml_data['names']
-                                    app.logger.info(f"Encontradas clases en {dataset_yaml}: {class_names}")
-                                    break
-            else:
-                app.logger.warning(f"Directorio de datasets no encontrado: {dataset_dir}")
-    except Exception as e:
-        app.logger.error(f"Error al leer nombres de clases: {e}")
+            class_names = classes_dict
+        app.logger.info(f"Clases extraídas para el modelo {clean_model_id}: {class_names}")
     
-    # Get model metadata if available
-    model_info = {}
-    model_info_path = os.path.join(model_path, 'model_info.json')
-    app.logger.info(f"Buscando información del modelo en: {model_info_path}")
-    if os.path.exists(model_info_path):
-        try:
-            with open(model_info_path, 'r') as f:
-                model_info = json.load(f)
-                app.logger.info(f"Información del modelo cargada. Claves: {list(model_info.keys())}")
-                if 'metrics' in model_info:
-                    app.logger.info(f"Métricas encontradas en model_info: {model_info['metrics']}")
-        except Exception as e:
-            app.logger.error(f"Error al leer información del modelo: {e}")
-    else:
-        app.logger.warning(f"Archivo model_info.json no encontrado en {model_info_path}")
-    
-    # If still no classes found, use default classes
+    # Si no se encontraron clases, usar valores predeterminados
     if not class_names:
         class_names = ["CHILD", "COLUMPIO"]
         app.logger.warning(f"Usando clases predeterminadas para el modelo {model_id}")
     
-    # Función auxiliar para buscar métricas en diferentes posibles ubicaciones y formatos
-    def find_metric_value(metric_name, data_sources):
-        """
-        Busca un valor métrico en múltiples fuentes de datos y con diferentes posibles nombres de clave.
-        Args:
-            metric_name: Nombre base de la métrica a buscar (ej: 'precision')
-            data_sources: Lista de diccionarios donde buscar la métrica
-        Returns:
-            El valor de la métrica si se encuentra, o 0.0 si no se encuentra
-        """
-        app.logger.info(f"Buscando métrica: {metric_name}")
-        
-        # Lista de posibles nombres de clave para cada métrica
-        possible_keys = [
-            metric_name,                      # "precision"
-            f"metrics/{metric_name}",         # "metrics/precision"
-            f"metrics/{metric_name}(B)",      # "metrics/precision(B)"
-            metric_name.lower(),              # "precision" (lowercase)
-            metric_name.upper(),              # "PRECISION" (uppercase)
-            f"val/{metric_name}",             # "val/precision" 
-            f"test/{metric_name}",            # "test/precision"
-            f"validation/{metric_name}",      # "validation/precision"
-            f"metrics/val_{metric_name}"      # "metrics/val_precision"
-        ]
-        
-        app.logger.info(f"Buscando usando claves: {possible_keys}")
-        app.logger.info(f"Número de fuentes de datos: {len(data_sources)}")
-        
-        # Buscar en cada fuente de datos proporcionada
-        for i, data_source in enumerate(data_sources):
-            if not data_source:
-                app.logger.warning(f"Fuente de datos {i+1} está vacía o es None")
-                continue
-                
-            app.logger.info(f"Buscando en fuente de datos {i+1}. Tipo: {type(data_source)}. Claves: {list(data_source.keys()) if isinstance(data_source, dict) else 'No es un diccionario'}")
-                
-            # Buscar con cada posible nombre de clave
-            for key in possible_keys:
-                if key in data_source:
-                    app.logger.info(f"¡ENCONTRADO! Métrica {metric_name} en clave {key}: {data_source[key]}")
-                    return float(data_source[key])
-                    
-            # Si hay una clave de metrics anidada, buscar también allí
-            if 'metrics' in data_source and isinstance(data_source['metrics'], dict):
-                app.logger.info(f"Encontrada sección metrics anidada. Claves: {list(data_source['metrics'].keys())}")
-                for key in possible_keys:
-                    if key in data_source['metrics']:
-                        app.logger.info(f"¡ENCONTRADO EN METRICS ANIDADO! Métrica {metric_name} en clave {key}: {data_source['metrics'][key]}")
-                        return float(data_source['metrics'][key])
-        
-        # Si llegamos aquí, no se encontró la métrica
-        app.logger.warning(f"Métrica {metric_name} no encontrada en ninguna fuente de datos")
-        return 0.0
+    # Extraer metadatos del modelo
+    model_info = model_utils.extract_model_metadata(models_dir, clean_model_id)
+    if not model_info:
+        model_info = {}
+        app.logger.warning(f"No se encontraron metadatos para el modelo {clean_model_id}")
     
-    # Recolectar todas las posibles fuentes de datos que podrían contener métricas
-    data_sources = []
+    # Extraer métricas del modelo usando metrics_utils
+    app.logger.info(f"Extrayendo métricas para el modelo: {clean_model_id}")
+    metrics_extractor = metrics_utils.ModelMetricsExtractor(models_dir, clean_model_id)
+    metrics = metrics_extractor.get_all_metrics()
     
-    # Ruta del modelo PT
-    pt_model_path = os.path.join('static', 'models', f"{clean_model_id}.pt")
-    app.logger.info(f"Verificando si existe modelo PT en: {pt_model_path}")
-    if os.path.exists(pt_model_path):
-        app.logger.info(f"Archivo de modelo PT encontrado: {pt_model_path}")
-    else:
-        app.logger.warning(f"Archivo de modelo PT no encontrado: {pt_model_path}")
-    
-    # Check for metrics.json
-    metrics_path = os.path.join(model_path, 'metrics.json')
-    app.logger.info(f"Buscando archivo de métricas en: {metrics_path}")
-    if os.path.exists(metrics_path):
-        try:
-            with open(metrics_path, 'r') as f:
-                metrics = json.load(f)
-                data_sources.append(metrics)
-                app.logger.info(f"Métricas cargadas desde {metrics_path}. Claves: {list(metrics.keys())}")
-        except Exception as e:
-            app.logger.error(f"Error al leer métricas desde {metrics_path}: {e}")
-    else:
-        app.logger.warning(f"Archivo metrics.json no encontrado en {metrics_path}")
-    
-    # Check for results.json
-    results_path = os.path.join(model_path, 'results.json')
-    app.logger.info(f"Buscando archivo de resultados en: {results_path}")
-    if os.path.exists(results_path):
-        try:
-            with open(results_path, 'r') as f:
-                results = json.load(f)
-                data_sources.append(results)
-                app.logger.info(f"Resultados cargados desde {results_path}. Claves: {list(results.keys())}")
-        except Exception as e:
-            app.logger.error(f"Error al leer resultados desde {results_path}: {e}")
-    else:
-        app.logger.warning(f"Archivo results.json no encontrado en {results_path}")
-    
-    # Check for any files in a results directory
-    results_dir = os.path.join(model_path, 'results')
-    app.logger.info(f"Buscando directorio de resultados en: {results_dir}")
-    if os.path.exists(results_dir) and os.path.isdir(results_dir):
-        app.logger.info(f"Directorio de resultados encontrado. Contenido: {os.listdir(results_dir)}")
-        for file_name in os.listdir(results_dir):
-            if file_name.endswith('.json'):
-                try:
-                    file_path = os.path.join(results_dir, file_name)
-                    app.logger.info(f"Analizando archivo: {file_path}")
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                        data_sources.append(data)
-                        app.logger.info(f"Datos cargados desde {file_path}. Claves: {list(data.keys())}")
-                except Exception as e:
-                    app.logger.error(f"Error al leer datos desde {file_name}: {e}")
-    else:
-        app.logger.warning(f"Directorio de resultados no encontrado: {results_dir}")
-    
-    # Add model_info to data sources if it's not empty
-    if model_info:
-        data_sources.append(model_info)
-        app.logger.info("Añadida información del modelo a las fuentes de datos")
-    
-    # Verify that we have data sources to search
-    if not data_sources:
-        app.logger.warning("No se encontraron fuentes de datos para buscar métricas. Se usarán valores predeterminados.")
-    else:
-        app.logger.info(f"Total de fuentes de datos a buscar: {len(data_sources)}")
-    
-    # Buscar las métricas usando la función auxiliar
-    precision = find_metric_value('precision', data_sources)
-    recall = find_metric_value('recall', data_sources)
-    map50 = find_metric_value('mAP50', data_sources)
-    map50_95 = find_metric_value('mAP50-95', data_sources)
-    
-    # Registrar si estamos usando métricas reales o predeterminadas
-    if precision == 0.0:
-        precision = 0.92
-        app.logger.warning(f"No se encontraron métricas de precisión para el modelo {clean_model_id}, usando valor predeterminado")
-    else:
-        app.logger.info(f"Usando valor de precisión real: {precision}")
-    
-    if recall == 0.0:
-        recall = 0.89
-        app.logger.warning(f"No se encontraron métricas de exhaustividad para el modelo {clean_model_id}, usando valor predeterminado")
-    else:
-        app.logger.info(f"Usando valor de exhaustividad real: {recall}")
-    
-    if map50 == 0.0:
-        map50 = 0.88
-        app.logger.warning(f"No se encontraron métricas de mAP50 para el modelo {clean_model_id}, usando valor predeterminado")
-    else:
-        app.logger.info(f"Usando valor de mAP50 real: {map50}")
-    
-    if map50_95 == 0.0:
-        map50_95 = 0.67
-        app.logger.warning(f"No se encontraron métricas de mAP50-95 para el modelo {clean_model_id}, usando valor predeterminado")
-    else:
-        app.logger.info(f"Usando valor de mAP50-95 real: {map50_95}")
-    
-    # Format with 2 decimal places
-    precision = round(float(precision), 2)
-    recall = round(float(recall), 2)
-    map50 = round(float(map50), 2)
-    map50_95 = round(float(map50_95), 2)
+    # Asignar métricas a variables individuales para el template
+    precision = metrics.get('precision', 0.92)
+    recall = metrics.get('recall', 0.89)
+    map50 = metrics.get('mAP50', 0.88)
+    map50_95 = metrics.get('mAP50-95', 0.67)
     
     app.logger.info(f"====== BÚSQUEDA DE MÉTRICAS FINALIZADA ======")
     app.logger.info(f"Valores finales - Precision: {precision}, Recall: {recall}, mAP50: {map50}, mAP50-95: {map50_95}")
@@ -1584,171 +1429,120 @@ def model_details(model_id):
 @app.route('/api/model-details')
 def api_model_details():
     """
-    API endpoint to get detailed information about a specific model
+    API endpoint para obtener información detallada sobre un modelo específico.
+    Utiliza módulos de utilidades para extraer clases y métricas de forma robusta.
     """
+    app.logger.info("Iniciando api_model_details")
     model_id = request.args.get('id')
     if not model_id:
         return jsonify({'error': 'Model ID is required'}), 400
     
-    # Get models directory
+    # Obtener directorio de modelos
     models_dir = app.config['MODELS_FOLDER']
-    model_path = os.path.join(models_dir, model_id + '.pt')
+    clean_model_id = model_id.replace('/', '_').replace('\\', '_')
+    model_path = os.path.join(models_dir, clean_model_id + '.pt')
     
     if not os.path.exists(model_path):
+        app.logger.warning(f"Modelo no encontrado: {model_path}")
         return jsonify({'error': 'Model not found'}), 404
     
-    # Get model information
-    model_info = {}
+    # Path al directorio de metadatos del modelo
+    metadata_dir = os.path.join(models_dir, model_id)
+    
+    # Iniciamos la recolección de información del modelo
     try:
-        # Get model basic information
-        stats = os.stat(model_path)
-        model_size = stats.st_size
-        created_time = datetime.fromtimestamp(stats.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+        # Obtener información básica del modelo
+        basic_info = model_utils.get_model_basic_info(model_path)
+        if not basic_info:
+            basic_info = {
+                'model_size': 0,
+                'created': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'modified': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
         
-        # Check for ONNX version
-        onnx_path = os.path.join(models_dir, model_id + '.onnx')
+        # Verificar versión ONNX
+        onnx_path = os.path.join(models_dir, clean_model_id + '.onnx')
         has_onnx = os.path.exists(onnx_path)
         
-        # Path to model's metadata directory
-        metadata_dir = os.path.join(models_dir, model_id)
-        model_info_file = os.path.join(metadata_dir, 'model_info.json')
-        metrics_file = os.path.join(metadata_dir, 'metrics.json')
-        args_file = os.path.join(metadata_dir, 'args.yaml')
-        
-        # Initialize model info with basic attributes
+        # Inicializar la estructura de datos del modelo
         model_data = {
             'name': model_id,
-            'path': f'/models/{model_id}.pt',
-            'created': created_time,
+            'path': f'/models/{clean_model_id}.pt',
+            'created': basic_info['created'],
             'type': 'PyTorch',
             'model_info': {
-                'model_size': model_size,
-                'base_model': 'YOLOv8n'  # Default if not found in metadata
+                'model_size': basic_info['model_size'],
+                'base_model': 'YOLOv8'  # Valor predeterminado
             },
             'metrics': {},
             'has_onnx': has_onnx
         }
         
         if has_onnx:
-            model_data['onnx_path'] = f'/models/{model_id}.onnx'
+            model_data['onnx_path'] = f'/models/{clean_model_id}.onnx'
         
-        # Load model info if available
-        if os.path.exists(model_info_file):
-            with open(model_info_file, 'r') as f:
-                info = json.load(f)
-                model_data['model_info'].update(info)
+        # Extraer metadatos del modelo desde diversas fuentes
+        app.logger.info(f"Extrayendo metadatos para modelo: {model_id}")
+        metadata = model_utils.extract_model_metadata(models_dir, model_id)
+        if metadata:
+            # Actualizar modelo_info con los metadatos encontrados
+            if 'model_info' not in model_data:
+                model_data['model_info'] = {}
+            model_data['model_info'].update(metadata)
+            app.logger.info(f"Metadatos extraídos: {len(metadata)} campos")
+            
+            # Si hay campo de base_model actualizar
+            if 'base_model' in metadata:
+                model_data['model_info']['base_model'] = metadata['base_model']
+            elif 'model' in metadata:
+                model_data['model_info']['base_model'] = metadata['model']
         
-        # Load metrics if available
-        if os.path.exists(metrics_file):
-            with open(metrics_file, 'r') as f:
-                metrics = json.load(f)
-                model_data['metrics'] = metrics
+        # Extraer nombres de clases
+        app.logger.info(f"Extrayendo nombres de clases para modelo: {model_id}")
+        classes = model_utils.extract_class_names(model_path, models_dir, model_id)
+        if classes:
+            model_data['model_info']['classes'] = classes
+            app.logger.info(f"Clases extraídas: {classes}")
+        else:
+            # Usar clases predeterminadas si no se encuentran
+            app.logger.warning(f"No se encontraron clases para el modelo {model_id}, usando valores predeterminados")
+            model_data['model_info']['classes'] = {0: "class0", 1: "class1"}
         
-        # Check for training artifacts
+        # Extraer métricas del modelo
+        app.logger.info(f"Extrayendo métricas para modelo: {model_id}")
+        metrics_extractor = metrics_utils.ModelMetricsExtractor(models_dir, model_id)
+        metrics = metrics_extractor.get_all_metrics()
+        if metrics:
+            model_data['metrics'] = metrics
+            app.logger.info(f"Métricas extraídas: {metrics}")
+        
+        # Verificar archivos de artefactos de entrenamiento
         artifacts_dir = os.path.join(models_dir, model_id, 'artifacts')
         if os.path.exists(artifacts_dir):
             training_files = {}
             for file in os.listdir(artifacts_dir):
                 file_path = os.path.join(artifacts_dir, file)
                 if os.path.isfile(file_path):
-                    # Create relative URL for the artifact
+                    # Crear URL relativa para el artefacto
                     training_files[file] = f'/models/{model_id}/artifacts/{file}'
             
-            model_data['training_files'] = training_files
+            if training_files:
+                model_data['training_files'] = training_files
+                app.logger.info(f"Artefactos de entrenamiento encontrados: {len(training_files)}")
         
-        # Add args.yaml if available
+        # Agregar referencia a args.yaml si existe
+        args_file = os.path.join(metadata_dir, 'args.yaml')
         if os.path.exists(args_file):
             model_data['args_file'] = f'/models/{model_id}/args.yaml'
-            # Check if this is a trained model with YAML config
-            try:
-                import yaml
-                with open(args_file, 'r') as f:
-                    yaml_config = yaml.safe_load(f)
-                
-                # Update paths to absolute
-                yaml_config['path'] = os.path.abspath(models_dir)
-                
-                # Convert relative paths to absolute if they start with ..
-                if 'train' in yaml_config and yaml_config['train'].startswith('../'):
-                    yaml_config['train'] = 'train/images'
-                if 'val' in yaml_config and yaml_config['val'].startswith('../'):
-                    yaml_config['val'] = 'valid/images'
-                if 'test' in yaml_config and yaml_config['test'].startswith('../'):
-                    yaml_config['test'] = 'test/images'
-                
-                # Keep class names from existing YAML or update with classes.txt
-                if 'names' in yaml_config:
-                    model_data['model_info']['classes'] = yaml_config['names']
-                    app.logger.info(f"Added class names from data.yaml: {yaml_config['names']}")
-            except Exception as e:
-                app.logger.error(f"Error reading YAML config: {str(e)}")
+            app.logger.info(f"Archivo args.yaml encontrado para modelo {model_id}")
         
-        # Try to load the actual model to get class information if it's not already in model_info
-        if 'classes' not in model_data['model_info'] and os.path.exists(model_path):
-            try:
-                from ultralytics import YOLO
-                app.logger.info(f"Loading model from {model_path} to extract class names")
-                model = YOLO(model_path)
-                
-                # Check all possible locations where class names might be stored in YOLO model
-                classes_dict = None
-                
-                # Check model.names (most common location)
-                if hasattr(model, 'names') and model.names:
-                    app.logger.info(f"Found classes in model.names: {model.names}")
-                    classes_dict = model.names
-                
-                # Check model.model.names (sometimes in this location)
-                elif hasattr(model, 'model') and hasattr(model.model, 'names') and model.model.names:
-                    app.logger.info(f"Found classes in model.model.names: {model.model.names}")
-                    classes_dict = model.model.names
-                
-                # Check for names in the task-specific predictor
-                elif hasattr(model, 'predictor') and hasattr(model.predictor, 'names') and model.predictor.names:
-                    app.logger.info(f"Found classes in model.predictor.names: {model.predictor.names}")
-                    classes_dict = model.predictor.names
-                
-                # Process classes based on the type (dict or list)
-                if classes_dict is not None:
-                    # Convert to dict if it's a list
-                    if isinstance(classes_dict, list):
-                        classes_dict = {i: name for i, name in enumerate(classes_dict)}
-                    
-                    # Add class names to model_info
-                    model_data['model_info']['classes'] = classes_dict
-                    app.logger.info(f"Added classes to model_data: {classes_dict}")
-                else:
-                    app.logger.warning(f"No class names found in model {model_id}")
-            except Exception as e:
-                app.logger.error(f"Error loading model to get class names: {str(e)}")
-                # Add default COCO classes as fallback if model loading fails
-                app.logger.info("Using default COCO classes as fallback")
-                model_data['model_info']['classes'] = {
-                    0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 4: 'airplane',
-                    5: 'bus', 6: 'train', 7: 'truck', 8: 'boat', 9: 'traffic light',
-                    10: 'fire hydrant', 11: 'stop sign', 12: 'parking meter', 13: 'bench', 14: 'bird',
-                    15: 'cat', 16: 'dog', 17: 'horse', 18: 'sheep', 19: 'cow',
-                    20: 'elephant', 21: 'bear', 22: 'zebra', 23: 'giraffe', 24: 'backpack',
-                    25: 'umbrella', 26: 'handbag', 27: 'tie', 28: 'suitcase', 29: 'frisbee',
-                    30: 'skis', 31: 'snowboard', 32: 'sports ball', 33: 'kite', 34: 'baseball bat',
-                    35: 'baseball glove', 36: 'skateboard', 37: 'surfboard', 38: 'tennis racket', 39: 'bottle',
-                    40: 'wine glass', 41: 'cup', 42: 'fork', 43: 'knife', 44: 'spoon',
-                    45: 'bowl', 46: 'banana', 47: 'apple', 48: 'sandwich', 49: 'orange',
-                    50: 'broccoli', 51: 'carrot', 52: 'hot dog', 53: 'pizza', 54: 'donut',
-                    55: 'cake', 56: 'chair', 57: 'couch', 58: 'potted plant', 59: 'bed',
-                    60: 'dining table', 61: 'toilet', 62: 'tv', 63: 'laptop', 64: 'mouse',
-                    65: 'remote', 66: 'keyboard', 67: 'cell phone', 68: 'microwave', 69: 'oven',
-                    70: 'toaster', 71: 'sink', 72: 'refrigerator', 73: 'book', 74: 'clock',
-                    75: 'vase', 76: 'scissors', 77: 'teddy bear', 78: 'hair drier', 79: 'toothbrush'
-                }
-        
-        # Log the model data for debugging
-        app.logger.info(f"Model data for {model_id}: {model_data}")
-        
+        app.logger.info(f"Información completa del modelo {model_id} recopilada exitosamente")
         return jsonify(model_data)
     except Exception as e:
-        app.logger.error(f"Error getting model details: {str(e)}")
-        return jsonify({'error': 'Error getting model details'}), 500
+        app.logger.error(f"Error obteniendo detalles del modelo: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({'error': 'Error getting model details', 'details': str(e)}), 500
 
 @app.errorhandler(404)
 def page_not_found(e):
