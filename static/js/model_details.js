@@ -160,115 +160,74 @@ function renderModelDetails(model) {
         }
     }
     
-    // Get classes data and metrics data
-    console.log('[DEBUG] Checking for classes and metrics data');
-    let classesData = null;
-    
-    // Populate Class Statistics section - ONLY REAL DATA, NO DEFAULTS
+    // -----------------------------------------------
+    // Class Statistics - SIMPLIFIED APPROACH
+    // -----------------------------------------------
     const classesStats = document.getElementById('classesStats');
-    console.log('[DEBUG] classesStats element:', classesStats);
-    
-    if (model.model_info && model.model_info.classes) {
-        classesData = model.model_info.classes;
-        console.log("[DEBUG] Found classes in model_info.classes:", classesData);
+    if (classesStats) {
+        // First check if we have classes data in the model
+        let classes = null;
         
-        if (classesStats) {
-            const classCount = Object.keys(classesData).length;
-            console.log(`[DEBUG] Number of classes: ${classCount}`);
+        if (model.model_info && model.model_info.classes) {
+            classes = model.model_info.classes;
+        } else if (model.classes) {
+            classes = model.classes;  
+        }
+        
+        if (classes) {
+            const classCount = Object.keys(classes).length;
             
-            // Only use metrics if they are actually present in the data
-            const hasPrecision = metrics.precision || metrics['metrics/precision(B)'];
-            const hasRecall = metrics.recall || metrics['metrics/recall(B)'];
-            
-            console.log(`[DEBUG] Has precision: ${hasPrecision ? 'Yes' : 'No'}`);
-            console.log(`[DEBUG] Has recall: ${hasRecall ? 'Yes' : 'No'}`);
-            
-            // Build HTML for class statistics
-            console.log('[DEBUG] Building stats HTML...');
-            
-            // Formato simplificado que muestra datos básicos
-            classesStats.innerHTML = `
+            // Build simple HTML structure similar to other sections
+            let html = `
                 <div class="mb-3">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Total Classes:</span>
                         <span class="badge bg-primary">${classCount}</span>
-                    </div>
-                    ${hasPrecision ? `
+                    </div>`;
+                    
+            // Add precision/recall if available        
+            if (metrics.precision || metrics['metrics/precision(B)']) {
+                html += `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Precision:</span>
                         <span class="badge bg-success">${(metrics.precision || metrics['metrics/precision(B)']).toFixed(2)}</span>
-                    </div>` : ''}
-                    ${hasRecall ? `
+                    </div>`;
+            }
+            
+            if (metrics.recall || metrics['metrics/recall(B)']) {
+                html += `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Recall:</span>
                         <span class="badge bg-info">${(metrics.recall || metrics['metrics/recall(B)']).toFixed(2)}</span>
-                    </div>` : ''}
-                </div>
+                    </div>`;
+            }
+            
+            html += `</div>`;
                 
+            // Add class distribution
+            html += `
                 <div class="mt-3">
                     <h6 class="mb-2">Classes</h6>
-                    <div class="d-flex flex-wrap small">
-                        ${Object.entries(classesData).map(([id, name]) => 
-                            `<div class="me-2 mb-1">
-                                <span class="badge bg-secondary">${id}</span> ${name}
-                            </div>`
-                        ).join('')}
+                    <div class="d-flex flex-wrap small">`;
+                    
+            Object.entries(classes).forEach(([id, name]) => {
+                html += `
+                    <div class="me-2 mb-1">
+                        <span class="badge bg-secondary">${id}</span> ${name}
+                    </div>`;
+            });
+            
+            html += `
                     </div>
                 </div>`;
-            
-            console.log("[DEBUG] Updated Class Statistics with real data");
-        }
-    } else {
-        console.log("[DEBUG] No class data found in model_info.classes");
-        // Try to get class data from class_names directly in the API response
-        if (model.class_names) {
-            console.log("[DEBUG] Found class_names directly in model:", model.class_names);
-            
-            // Convert to appropriate format if it's an array
-            let classes = {};
-            if (Array.isArray(model.class_names)) {
-                model.class_names.forEach((name, index) => {
-                    classes[index] = name;
-                });
-            } else {
-                classes = model.class_names;
-            }
-            
-            if (classesStats) {
-                const classCount = Object.keys(classes).length;
                 
-                // Simplified format that shows the basic data
-                classesStats.innerHTML = `
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="fw-bold">Total Classes:</span>
-                            <span class="badge bg-primary">${classCount}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-3">
-                        <h6 class="mb-2">Classes</h6>
-                        <div class="d-flex flex-wrap small">
-                            ${Object.entries(classes).map(([id, name]) => 
-                                `<div class="me-2 mb-1">
-                                    <span class="badge bg-secondary">${id}</span> ${name}
-                                </div>`
-                            ).join('')}
-                        </div>
-                    </div>`;
-                
-                console.log("[DEBUG] Updated Class Statistics with class_names data");
-            }
+            classesStats.innerHTML = html;
         } else {
-            // If no real data is available, show an informative message
-            if (classesStats) {
-                console.log("[DEBUG] No class data found at all, showing info message");
-                classesStats.innerHTML = `
-                    <div class="alert alert-info">
-                        <p><i class="bi bi-info-circle"></i> No hay datos de clases disponibles para este modelo.</p>
-                        <p class="small">Intente cargar el modelo en la sección de Detección para ver las estadísticas.</p>
-                    </div>`;
-            }
+            // No classes data available
+            classesStats.innerHTML = `
+                <div class="alert alert-info">
+                    <p><i class="bi bi-info-circle"></i> No class data available for this model.</p>
+                </div>`;
         }
     }
     
@@ -277,15 +236,14 @@ function renderModelDetails(model) {
     classesContainer.innerHTML = '';
     
     // Asegurarnos de tener datos de clases, buscando en todas las posibles ubicaciones
-    if (classesData === null) {
-        // Variables para lógica de clases fuera del bloque principal
-        if (model.classes && Object.keys(model.classes).length > 0) {
-            classesData = model.classes;
-            console.log("[DEBUG] Using direct model.classes data");
-        } else if (model.model_info && model.model_info.names && Object.keys(model.model_info.names).length > 0) {
-            classesData = model.model_info.names;
-            console.log("[DEBUG] Using model_info.names data");
-        }
+    let classesData = null;
+    
+    if (model.classes && Object.keys(model.classes).length > 0) {
+        classesData = model.classes;
+        console.log("[DEBUG] Using direct model.classes data");
+    } else if (model.model_info && model.model_info.names && Object.keys(model.model_info.names).length > 0) {
+        classesData = model.model_info.names;
+        console.log("[DEBUG] Using model_info.names data");
     }
     
     console.log("[DEBUG] Final classes data:", classesData);
