@@ -1000,7 +1000,7 @@
                                                     <i class="bi bi-download"></i> Download ONNX Model
                                                 </a>
                                             ` : ''}
-                                            <a href="/model/${model.name}" class="btn btn-sm btn-info mb-2">
+                                            <a href="/model/${encodeURIComponent(model.name)}" class="btn btn-sm btn-info mb-2">
                                                 <i class="bi bi-info-circle"></i> Model Architecture & Details
                                             </a>
                                         </div>
