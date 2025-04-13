@@ -1190,7 +1190,7 @@ def api_list_models():
                                 rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
                                 training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
                     
-                    # Check if there's a corresponding ONNX model
+                    # Check for ONNX model
                     onnx_path = model_path.replace('.pt', '.onnx')
                     has_onnx = os.path.exists(onnx_path)
                     
@@ -1333,15 +1333,19 @@ def model_details(model_id):
     """
     app.logger.info(f"====== INICIANDO BÚSQUEDA DE MÉTRICAS PARA MODELO: {model_id} ======")
     
+    # Eliminar el sufijo " (last)" si está presente en el ID del modelo
+    clean_model_id = model_id.replace(" (last)", "")
+    app.logger.info(f"ID del modelo original: {model_id}, ID del modelo limpio: {clean_model_id}")
+    
     # Get models directory
     models_dir = os.path.join('static', 'uploads', 'models')
-    model_path = os.path.join(models_dir, model_id)
+    model_path = os.path.join(models_dir, clean_model_id)
     
     # Check if model_path exists
     if not os.path.exists(model_path):
         app.logger.warning(f"El directorio del modelo no existe en: {model_path}")
         # Try alternative location
-        model_path = os.path.join('static', 'models', model_id)
+        model_path = os.path.join('static', 'models', clean_model_id)
         if os.path.exists(model_path):
             app.logger.info(f"Usando directorio alternativo: {model_path}")
         else:
@@ -1463,7 +1467,7 @@ def model_details(model_id):
     data_sources = []
     
     # Ruta del modelo PT
-    pt_model_path = os.path.join('static', 'models', f"{model_id}.pt")
+    pt_model_path = os.path.join('static', 'models', f"{clean_model_id}.pt")
     app.logger.info(f"Verificando si existe modelo PT en: {pt_model_path}")
     if os.path.exists(pt_model_path):
         app.logger.info(f"Archivo de modelo PT encontrado: {pt_model_path}")
@@ -1537,25 +1541,25 @@ def model_details(model_id):
     # Registrar si estamos usando métricas reales o predeterminadas
     if precision == 0.0:
         precision = 0.92
-        app.logger.warning(f"No se encontraron métricas de precisión para el modelo {model_id}, usando valor predeterminado")
+        app.logger.warning(f"No se encontraron métricas de precisión para el modelo {clean_model_id}, usando valor predeterminado")
     else:
         app.logger.info(f"Usando valor de precisión real: {precision}")
     
     if recall == 0.0:
         recall = 0.89
-        app.logger.warning(f"No se encontraron métricas de exhaustividad para el modelo {model_id}, usando valor predeterminado")
+        app.logger.warning(f"No se encontraron métricas de exhaustividad para el modelo {clean_model_id}, usando valor predeterminado")
     else:
         app.logger.info(f"Usando valor de exhaustividad real: {recall}")
     
     if map50 == 0.0:
         map50 = 0.88
-        app.logger.warning(f"No se encontraron métricas de mAP50 para el modelo {model_id}, usando valor predeterminado")
+        app.logger.warning(f"No se encontraron métricas de mAP50 para el modelo {clean_model_id}, usando valor predeterminado")
     else:
         app.logger.info(f"Usando valor de mAP50 real: {map50}")
     
     if map50_95 == 0.0:
         map50_95 = 0.67
-        app.logger.warning(f"No se encontraron métricas de mAP50-95 para el modelo {model_id}, usando valor predeterminado")
+        app.logger.warning(f"No se encontraron métricas de mAP50-95 para el modelo {clean_model_id}, usando valor predeterminado")
     else:
         app.logger.info(f"Usando valor de mAP50-95 real: {map50_95}")
     
