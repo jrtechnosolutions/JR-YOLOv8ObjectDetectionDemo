@@ -169,74 +169,80 @@ function renderModelDetails(model) {
     let classesData = null;
     const metrics = model.metrics || {};
     
+    // Populate Class Statistics section - ONLY REAL DATA, NO DEFAULTS
+    const classesStats = document.getElementById('classesStats');
+    
     if (model.model_info && model.model_info.classes) {
         classesData = model.model_info.classes;
-        console.log("Using classes from model_info.classes:", classesData);
-    }
-    
-    // Populate Class Statistics section - SIMPLIFIED VERSION
-    const classesStats = document.getElementById('classesStats');
-    console.log('Class stats element:', classesStats);
-    console.log('Classes data:', classesData);
-    
-    // HARDCODED DATA FOR TESTING - Remove later!
-    if (!classesData || Object.keys(classesData).length === 0) {
-        console.warn('Using hardcoded classes as fallback');
-        classesData = {
-            0: 'person', 
-            1: 'bicycle', 
-            2: 'car'
-        };
-    }
-    
-    if (classesStats) {
-        const classCount = classesData ? Object.keys(classesData).length : 0;
-        const precision = (metrics.precision || metrics['metrics/precision(B)'] || 0.92).toFixed(2);
-        const recall = (metrics.recall || metrics['metrics/recall(B)'] || 0.89).toFixed(2);
+        console.log("Found real classes in model_info.classes:", classesData);
         
-        console.log(`Rendering class stats: ${classCount} classes, precision: ${precision}, recall: ${recall}`);
-        
-        // Simple and direct HTML structure - similar to other working sections
-        classesStats.innerHTML = `
-            <div class="mb-3">
-                <div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="fw-bold">Total Classes:</span>
-                        <span class="badge bg-primary">${classCount}</span>
-                    </div>
+        if (classesStats) {
+            const classCount = Object.keys(classesData).length;
+            
+            // Only use metrics if they are actually present in the data
+            const hasPrecision = metrics.precision || metrics['metrics/precision(B)'];
+            const hasRecall = metrics.recall || metrics['metrics/recall(B)'];
+            
+            let statsHTML = '<div class="mb-3"><div>';
+            
+            // Total Classes (always show this)
+            statsHTML += `
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="fw-bold">Total Classes:</span>
+                    <span class="badge bg-primary">${classCount}</span>
+                </div>`;
+            
+            // Only show precision if available in metrics
+            if (hasPrecision) {
+                const precision = (metrics.precision || metrics['metrics/precision(B)']).toFixed(2);
+                statsHTML += `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Precision:</span>
                         <span class="badge bg-success">${precision}</span>
-                    </div>
+                    </div>`;
+            }
+            
+            // Only show recall if available in metrics
+            if (hasRecall) {
+                const recall = (metrics.recall || metrics['metrics/recall(B)']).toFixed(2);
+                statsHTML += `
                     <div class="d-flex justify-content-between mb-2">
                         <span class="fw-bold">Average Recall:</span>
                         <span class="badge bg-info">${recall}</span>
-                    </div>
-                </div>
-            </div>`;
-        
-        // Solo mostrar distribución si hay clases
-        if (classesData && Object.keys(classesData).length > 0) {
-            classesStats.innerHTML += `
-                <div class="mt-3">
-                    <h6 class="mb-2">Class Distribution</h6>
-                    <div class="d-flex flex-wrap small">`;
-            
-            Object.entries(classesData).forEach(([id, name]) => {
-                classesStats.innerHTML += `
-                    <div class="me-2 mb-1">
-                        <span class="badge bg-secondary">${id}</span> ${name}
                     </div>`;
-            });
+            }
             
-            classesStats.innerHTML += `
-                    </div>
+            statsHTML += '</div></div>';
+            
+            // Class Distribution - only show if we have real classes
+            if (classCount > 0) {
+                statsHTML += `
+                    <div class="mt-3">
+                        <h6 class="mb-2">Class Distribution</h6>
+                        <div class="d-flex flex-wrap small">`;
+                
+                Object.entries(classesData).forEach(([id, name]) => {
+                    statsHTML += `
+                        <div class="me-2 mb-1">
+                            <span class="badge bg-secondary">${id}</span> ${name}
+                        </div>`;
+                });
+                
+                statsHTML += `</div></div>`;
+            }
+            
+            classesStats.innerHTML = statsHTML;
+            console.log("Updated Class Statistics with real data");
+        }
+    } else {
+        // If no real data is available, show an informative message
+        if (classesStats) {
+            classesStats.innerHTML = `
+                <div class="alert alert-info">
+                    <p><i class="bi bi-info-circle"></i> No hay datos de clases disponibles para este modelo.</p>
+                    <p class="small">Las estadísticas se mostrarán cuando el modelo incluya datos de clases.</p>
                 </div>`;
         }
-        
-        console.log("Class Statistics updated with data");
-    } else {
-        console.error("Could not find classesStats element!");
     }
     
     // Classes section
