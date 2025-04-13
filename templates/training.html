@@ -969,10 +969,19 @@
             
             let interpretation = '';
             
-            // Get metrics to use in analysis
-            const precision = model.metrics?.precision || model.metrics?.['metrics/precision(B)'] || 0;
-            const recall = model.metrics?.recall || model.metrics?.['metrics/recall(B)'] || 0;
-            const mAP50 = model.metrics?.mAP50 || model.metrics?.['metrics/mAP50(B)'] || 0;
+            // Usar la función mejorada getMetricValue para obtener las métricas reales
+            const precision = getMetricValue('precision');
+            const recall = getMetricValue('recall'); 
+            const mAP50 = getMetricValue('mAP50');
+            const mAP5095 = getMetricValue('mAP50-95');
+            
+            // Para prevenir errores en el código, convertir 'N/A' a valores numéricos cuando sea necesario
+            const precisionValue = precision === 'N/A' ? 0 : parseFloat(precision);
+            const recallValue = recall === 'N/A' ? 0 : parseFloat(recall);
+            const mAP50Value = mAP50 === 'N/A' ? 0 : parseFloat(mAP50);
+            
+            // Añadir log para depuración
+            console.log(`Analyzing ${filename} with metrics:`, { precision, recall, mAP50, mAP5095 });
             
             // Specific interpretation based on filename
             switch(filename) {
@@ -981,76 +990,76 @@
                                      different classes. Balanced datasets typically lead to better model performance.`;
                     break;
                 case 'results.png':
-                    if (mAP50 > 0.8) {
-                        interpretation = `The model shows excellent performance with mAP50 of ${mAP50.toFixed(2)}. 
+                    if (mAP50Value > 0.8) {
+                        interpretation = `The model shows excellent performance with mAP50 of ${mAP50Value.toFixed(2)}. 
                                          Loss curves show good convergence.`;
-                    } else if (mAP50 > 0.5) {
-                        interpretation = `The model shows good performance with mAP50 of ${mAP50.toFixed(2)}. 
+                    } else if (mAP50Value > 0.5) {
+                        interpretation = `The model shows good performance with mAP50 of ${mAP50Value.toFixed(2)}. 
                                          Further training might improve results.`;
                     } else {
-                        interpretation = `The model shows moderate performance with mAP50 of ${mAP50.toFixed(2)}. 
+                        interpretation = `The model shows moderate performance with mAP50 of ${mAP50Value.toFixed(2)}. 
                                          Consider increasing epochs or adjusting hyperparameters.`;
                     }
                     break;
                 case 'confusion_matrix.png':
-                    if (precision > 0.8 && recall > 0.8) {
-                        interpretation = `Excellent class separation with high precision (${precision.toFixed(2)}) 
-                                         and recall (${recall.toFixed(2)}). The model rarely confuses classes.`;
-                    } else if (precision > 0.5 && recall > 0.5) {
-                        interpretation = `Good class separation with precision ${precision.toFixed(2)} and 
-                                         recall ${recall.toFixed(2)}. Some class confusion may be present.`;
+                    if (precisionValue > 0.8 && recallValue > 0.8) {
+                        interpretation = `Excellent class separation with high precision (${precisionValue.toFixed(2)}) 
+                                         and recall (${recallValue.toFixed(2)}). The model rarely confuses classes.`;
+                    } else if (precisionValue > 0.5 && recallValue > 0.5) {
+                        interpretation = `Good class separation with precision ${precisionValue.toFixed(2)} and 
+                                         recall ${recallValue.toFixed(2)}. Some class confusion may be present.`;
                     } else {
                         interpretation = `Moderate class separation. The model may be confusing some classes. 
                                          Consider adding more diverse training examples.`;
                     }
                     break;
                 case 'PR_curve.png':
-                    if (precision > 0.8 && recall > 0.8) {
+                    if (precisionValue > 0.8 && recallValue > 0.8) {
                         interpretation = `The PR curve shows excellent balance between precision 
-                                         (${precision.toFixed(2)}) and recall (${recall.toFixed(2)}).`;
-                    } else if (precision > recall + 0.2) {
-                        interpretation = `The model favors precision (${precision.toFixed(2)}) over 
-                                         recall (${recall.toFixed(2)}). Good for applications requiring 
+                                         (${precisionValue.toFixed(2)}) and recall (${recallValue.toFixed(2)}).`;
+                    } else if (precisionValue > recallValue + 0.2) {
+                        interpretation = `The model favors precision (${precisionValue.toFixed(2)}) over 
+                                         recall (${recallValue.toFixed(2)}). Good for applications requiring 
                                          high confidence detections.`;
-                    } else if (recall > precision + 0.2) {
-                        interpretation = `The model favors recall (${recall.toFixed(2)}) over 
-                                         precision (${precision.toFixed(2)}). Good for applications where 
+                    } else if (recallValue > precisionValue + 0.2) {
+                        interpretation = `The model favors recall (${recallValue.toFixed(2)}) over 
+                                         precision (${precisionValue.toFixed(2)}). Good for applications where 
                                          finding all instances is critical.`;
                     } else {
                         interpretation = `The PR curve shows a balanced trade-off between precision 
-                                         (${precision.toFixed(2)}) and recall (${recall.toFixed(2)}).`;
+                                         (${precisionValue.toFixed(2)}) and recall (${recallValue.toFixed(2)}).`;
                     }
                     break;
                 case 'F1_curve.png':
-                    if (mAP50 > 0.75) {
+                    if (mAP50Value > 0.75) {
                         interpretation = `Strong F1 performance indicating a good balance between precision 
-                                         and recall. Peak F1 score correlates with mAP50 of ${mAP50.toFixed(2)}.`;
+                                         and recall. Peak F1 score correlates with mAP50 of ${mAP50Value.toFixed(2)}.`;
                     } else {
                         interpretation = `Moderate F1 performance with room for improvement in balancing 
                                          precision and recall. Consider adjusting confidence thresholds.`;
                     }
                     break;
                 case 'P_curve.png':
-                    if (precision > 0.8) {
+                    if (precisionValue > 0.8) {
                         interpretation = `Excellent precision curve showing high confidence in detected objects 
-                                         (${precision.toFixed(2)}). False positives are minimal.`;
-                    } else if (precision > 0.5) {
-                        interpretation = `Good precision curve (${precision.toFixed(2)}). The model is 
+                                         (${precisionValue.toFixed(2)}). False positives are minimal.`;
+                    } else if (precisionValue > 0.5) {
+                        interpretation = `Good precision curve (${precisionValue.toFixed(2)}). The model is 
                                          reasonably confident in its detections.`;
                     } else {
-                        interpretation = `Moderate precision performance (${precision.toFixed(2)}). 
+                        interpretation = `Moderate precision performance (${precisionValue.toFixed(2)}). 
                                          The model may produce some false positive detections.`;
                     }
                     break;
                 case 'R_curve.png':
-                    if (recall > 0.8) {
-                        interpretation = `Excellent recall curve (${recall.toFixed(2)}) indicating the model 
+                    if (recallValue > 0.8) {
+                        interpretation = `Excellent recall curve (${recallValue.toFixed(2)}) indicating the model 
                                          finds most objects. Few false negatives.`;
-                    } else if (recall > 0.5) {
-                        interpretation = `Good recall performance (${recall.toFixed(2)}). The model finds 
+                    } else if (recallValue > 0.5) {
+                        interpretation = `Good recall performance (${recallValue.toFixed(2)}). The model finds 
                                          most objects but may miss some.`;
                     } else {
-                        interpretation = `Moderate recall (${recall.toFixed(2)}). The model misses some 
+                        interpretation = `Moderate recall (${recallValue.toFixed(2)}). The model misses some 
                                          objects. Consider reducing confidence threshold for detection.`;
                     }
                     break;
