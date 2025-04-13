@@ -978,10 +978,15 @@ def results(filename):
     """Serve result files"""
     return send_file(os.path.abspath(os.path.join(app.config['RESULTS_FOLDER'], filename)))
 
-@app.route('/models/<filename>')
-def models(filename):
-    """Serve model files"""
-    return send_file(os.path.abspath(os.path.join(app.config['MODELS_FOLDER'], filename)))
+@app.route('/models/<model_filename>')
+def serve_model(model_filename):
+    """
+    Serve model files (PyTorch .pt or ONNX .onnx) for download
+    """
+    models_dir = app.config['MODELS_FOLDER']
+    return send_file(os.path.join(models_dir, model_filename),
+                    as_attachment=True,
+                    download_name=model_filename)
 
 @app.route('/api/list-models')
 def api_list_models():
@@ -1043,8 +1048,8 @@ def api_list_models():
                     for potential_file in potential_files:
                         file_path = os.path.join(model_dir, potential_file)
                         if os.path.exists(file_path):
-                            rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
                             print(f"Found artifact: {potential_file}")
+                            rel_file_path = os.path.relpath(file_path, app.config['MODELS_FOLDER'])
                             training_files[potential_file] = url_for('model_artifact', path=rel_file_path)
                     
                     # Check for ONNX model
@@ -1092,24 +1097,24 @@ def api_list_models():
                         except Exception as e:
                             print(f"Error reading YAML file: {e}")
                     
-                    # Add special handling for best.pt models
-                    is_best = 'best' in model_file
-                    creation_time = os.path.getctime(model_path)
+                    # Create web-accessible URL for the model
+                    # Static files are served from /static/models/
+                    url_path = url_for('static', filename=f'models/{rel_path}')
                     
                     models.append({
-                        'name': f"{model_name} ({'best' if is_best else 'last'})",
-                        'path': url_for('static', filename=f'models/{rel_path}'),
+                        'name': f"{model_name} ({'best' if 'best' in model_file else 'last'})",
+                        'path': url_path,
                         'full_path': model_path,
                         'relative_path': rel_path,
                         'type': 'PyTorch',
                         'has_onnx': has_onnx,
                         'onnx_path': url_for('static', filename=f'models/{os.path.relpath(onnx_path, app.config["MODELS_FOLDER"])}') if has_onnx else None,
-                        'created': datetime.fromtimestamp(creation_time).strftime('%Y-%m-%d %H:%M:%S'),
+                        'created': datetime.fromtimestamp(os.path.getctime(model_path)).strftime('%Y-%m-%d %H:%M:%S'),
                         'training_files': training_files,
                         'metrics': metrics,
                         'model_info': model_info,
                         'model_dir': os.path.relpath(model_dir, app.config['MODELS_FOLDER']),
-                        'is_best': is_best
+                        'is_best': 'best' in model_file
                     })
     
     # If no models found in the direct method, fall back to the original method of searching
