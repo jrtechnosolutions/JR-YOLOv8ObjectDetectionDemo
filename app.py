@@ -495,18 +495,20 @@ def extract_dataset(zip_path):
             has_proper_structure = False
             break
     
-    # If the dataset is already properly organized
+    # If the dataset is already properly organized with YOLO structure
     if has_proper_structure:
         print(f"Dataset has proper structure. Found train/valid dirs with images and labels.")
         return extract_path, yaml_files
     
-    # Simple auto-organization: look for annotations and images
-    img_extensions = {'.jpg', '.jpeg', '.png', '.bmp'}
-    annotation_extensions = {'.txt', '.xml', '.json'}
+    # Simple auto-organization: look for annotations and images in unstructured datasets
+    img_extensions = {'.jpg', '.jpeg', '.png', '.bmp'}  # Common image formats
+    annotation_extensions = {'.txt', '.xml', '.json'}   # Common annotation formats
     
+    # Lists to store found files
     image_files = []
     annotation_files = []
     
+    # Walk through extracted dataset to find images and annotations
     for root, _, files in os.walk(extract_path):
         for file in files:
             path = os.path.join(root, file)
@@ -519,10 +521,10 @@ def extract_dataset(zip_path):
     
     print(f"Found {len(image_files)} images and {len(annotation_files)} annotation files.")
     
-    # If we found images but no organized structure, create one
+    # If we found images but the dataset doesn't have the YOLO structure, create it
     if image_files and not has_proper_structure:
         print("Reorganizing dataset structure...")
-        # Create basic train/valid split (80/20)
+        # Create standard YOLO directory structure with train/valid/test splits
         os.makedirs(os.path.join(extract_path, 'train', 'images'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'train', 'labels'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'valid', 'images'), exist_ok=True)
@@ -530,19 +532,19 @@ def extract_dataset(zip_path):
         os.makedirs(os.path.join(extract_path, 'test', 'images'), exist_ok=True)
         os.makedirs(os.path.join(extract_path, 'test', 'labels'), exist_ok=True)
         
-        # Shuffle and split files
+        # Shuffle images for random split and create train/validation/test sets
         np.random.shuffle(image_files)
-        split_idx1 = int(len(image_files) * 0.7)  # 70% train
-        split_idx2 = int(len(image_files) * 0.9)  # 20% valid, 10% test
+        split_idx1 = int(len(image_files) * 0.7)  # 70% for training
+        split_idx2 = int(len(image_files) * 0.9)  # 20% for validation, 10% for testing
         train_images = image_files[:split_idx1]
         valid_images = image_files[split_idx1:split_idx2]
         test_images = image_files[split_idx2:]
         
-        # Copy files to appropriate locations
+        # Copy training images and find corresponding annotations
         for img_path in train_images:
             shutil.copy(img_path, os.path.join(extract_path, 'train', 'images', os.path.basename(img_path)))
             
-            # Find corresponding annotation if exists
+            # Find corresponding annotation by matching base filename
             base_name = os.path.splitext(os.path.basename(img_path))[0]
             for ann_path in annotation_files:
                 if os.path.splitext(os.path.basename(ann_path))[0] == base_name:
@@ -550,10 +552,11 @@ def extract_dataset(zip_path):
                                                     os.path.basename(ann_path)))
                     break
         
+        # Copy validation images and find corresponding annotations
         for img_path in valid_images:
             shutil.copy(img_path, os.path.join(extract_path, 'valid', 'images', os.path.basename(img_path)))
             
-            # Find corresponding annotation if exists
+            # Find corresponding annotation by matching base filename
             base_name = os.path.splitext(os.path.basename(img_path))[0]
             for ann_path in annotation_files:
                 if os.path.splitext(os.path.basename(ann_path))[0] == base_name:
@@ -561,10 +564,11 @@ def extract_dataset(zip_path):
                                                     os.path.basename(ann_path)))
                     break
         
+        # Copy test images and find corresponding annotations
         for img_path in test_images:
             shutil.copy(img_path, os.path.join(extract_path, 'test', 'images', os.path.basename(img_path)))
             
-            # Find corresponding annotation if exists
+            # Find corresponding annotation by matching base filename
             base_name = os.path.splitext(os.path.basename(img_path))[0]
             for ann_path in annotation_files:
                 if os.path.splitext(os.path.basename(ann_path))[0] == base_name:
@@ -578,39 +582,61 @@ def extract_dataset(zip_path):
 
 # Video streaming functions
 def get_video_stream(model_type, confidence=0.25):
-    """Generator function for video streaming"""
+    """
+    Generator function for video streaming with real-time processing
+    
+    Args:
+        model_type (str): Type of YOLO model to use for processing
+        confidence (float): Confidence threshold for detections
+        
+    Yields:
+        bytes: JPEG encoded frames for streaming
+    """
     global camera, camera_active, global_frame
     
-    # Load model
+    # Load the appropriate model
     model = load_model(model_type)
     
+    # Process frames as long as the camera is active
     while camera_active:
         success, frame = camera.read()
         if not success:
             break
         
-        # Process frame with YOLO
+        # Process frame with YOLO model
         results = model(frame, conf=confidence)
-        processed_frame = results[0].plot()
+        processed_frame = results[0].plot()  # Generate visualized frame with detections
         
-        # Store the processed frame
+        # Store the processed frame globally for potential capture
         global_frame = processed_frame
         
-        # Encode frame as JPEG
+        # Encode frame as JPEG for HTTP streaming
         ret, buffer = cv2.imencode('.jpg', processed_frame)
         frame_bytes = buffer.tobytes()
         
-        # Yield the output
+        # Yield the frame in multipart HTTP response format
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
     
-    # Release the camera when done
+    # Release camera resources when streaming stops
     if camera is not None:
         camera.release()
 
 # Function to process uploaded video files
 def process_video_file(video_path, model_type, confidence=0.25, max_frames=300):
-    """Process a video file with selected YOLO model and save the result"""
+    """
+    Process a video file with selected YOLO model and save the result
+    
+    Args:
+        video_path (str): Path to the input video file
+        model_type (str): Type of YOLO model to use
+        confidence (float): Confidence threshold for detections
+        max_frames (int): Maximum number of frames to process
+        
+    Returns:
+        tuple: (result_filename, message) containing the output video path and status message
+    """
+    # Load the appropriate model
     model = load_model(model_type)
     
     # Open the video file
@@ -618,21 +644,21 @@ def process_video_file(video_path, model_type, confidence=0.25, max_frames=300):
     if not cap.isOpened():
         return None, "Could not open video file"
     
-    # Get video properties
+    # Get video properties for creating output video
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
-    # Limit the number of frames to process
+    # Limit the number of frames to process to avoid long processing times
     frames_to_process = min(total_frames, max_frames)
     
-    # Create output video file
+    # Create output video file with unique name
     result_filename = f"{generate_unique_filename('video_result')}.mp4"
     result_path = os.path.join(app.config['RESULTS_FOLDER'], result_filename)
     
     # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MP4 codec
     out = cv2.VideoWriter(result_path, fourcc, fps, (width, height))
     
     processed_frames = 0
@@ -646,21 +672,22 @@ def process_video_file(video_path, model_type, confidence=0.25, max_frames=300):
             
             # Process frame with YOLO
             results = model(frame, conf=confidence)
-            result_frame = results[0].plot()
+            result_frame = results[0].plot()  # Generate visualized frame with detections
             
             # Write the processed frame to output video
             out.write(result_frame)
             processed_frames += 1
             
-            # Print progress every 10 frames
+            # Print progress periodically
             if i % 10 == 0:
                 print(f"Processing video: {i}/{frames_to_process} frames ({int(i/frames_to_process*100)}%)")
     except Exception as e:
+        # Handle errors during processing
         cap.release()
         out.release()
         return None, f"Error processing video: {str(e)}"
     finally:
-        # Release resources
+        # Release resources regardless of success or failure
         cap.release()
         out.release()
     
@@ -669,7 +696,13 @@ def process_video_file(video_path, model_type, confidence=0.25, max_frames=300):
 # API endpoint to process video file
 @app.route('/api/process-video', methods=['POST'])
 def api_process_video():
-    """API endpoint for processing an uploaded video file"""
+    """
+    API endpoint for processing an uploaded video file
+    
+    Returns:
+        JSON: Response with processed video URL or error message
+    """
+    # Check if video file was provided in request
     if 'video' not in request.files:
         return jsonify({'error': 'No video file provided'}), 400
     
@@ -677,15 +710,16 @@ def api_process_video():
     if video_file.filename == '':
         return jsonify({'error': 'No video file selected'}), 400
     
+    # Validate file extension
     if not allowed_file(video_file.filename):
         return jsonify({'error': 'Video file type not allowed'}), 400
     
-    # Save the uploaded video
+    # Save the uploaded video with a unique filename
     filename = secure_filename(video_file.filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], generate_unique_filename(filename))
     video_file.save(filepath)
     
-    # Get parameters
+    # Get processing parameters from the request
     model_type = request.form.get('model_type', 'detection')
     confidence = float(request.form.get('confidence', 0.25))
     max_frames = int(request.form.get('max_frames', 300))
@@ -693,78 +727,90 @@ def api_process_video():
     # Process the video file
     result_filename, message = process_video_file(filepath, model_type, confidence, max_frames)
     
+    # Return error if processing failed
     if result_filename is None:
         return jsonify({'error': message}), 500
     
+    # Return success with video URL
     return jsonify({
         'status': 'success',
         'message': message,
         'video_url': url_for('results', filename=result_filename)
     })
 
-# Video streaming page
+# Video streaming page - legacy route
 @app.route('/streaming')
 def streaming():
-    # Redirect to the new unified video stream page
+    """Legacy route for video streaming page (redirects to unified video stream page)"""
     return redirect(url_for('video_stream'))
 
-# Video processing page - alternative to streaming for Hugging Face Spaces
+# Video processing page - legacy route for Hugging Face Spaces
 @app.route('/video-processing')
 def video_processing():
-    # Redirect to the new unified video stream page
+    """Legacy route for video processing page (redirects to unified video stream page)"""
     return redirect(url_for('video_stream'))
 
 # Unified Video Analysis page (combines streaming and video processing)
 @app.route('/video-stream')
 def video_stream():
-    # Detect if we're running in Hugging Face
+    """
+    Unified video analysis page that handles both live streaming and video processing
+    Renders different templates based on environment (e.g., local vs. Hugging Face)
+    """
+    # Detect if we're running in Hugging Face environment
     is_huggingface = os.environ.get('SPACE_ID') is not None or 'huggingface.co' in request.host or 'spaces' in request.host
     
     # Render the appropriate template based on environment
     if is_huggingface:
-        return render_template('video_stream_hf.html')
+        return render_template('video_stream_hf.html')  # HF version without webcam
     else:
-        return render_template('video_stream.html')
+        return render_template('video_stream.html')  # Standard version with webcam support
 
-# Routes
+# Main application routes
 @app.route('/')
 def index():
-    """Home page"""
+    """Home page route"""
     return render_template('index.html')
 
 @app.route('/detection')
 def detection():
-    """Object detection page"""
+    """Object detection page route"""
     return render_template('detection.html')
 
 @app.route('/segmentation')
 def segmentation():
-    """Image segmentation page"""
+    """Image segmentation page route"""
     return render_template('segmentation.html')
 
 @app.route('/pose')
 def pose():
-    """Pose estimation page"""
+    """Pose estimation page route"""
     return render_template('pose.html')
 
 @app.route('/classification')
 def classification():
-    """Image classification page"""
+    """Image classification page route"""
     return render_template('classification.html')
 
 @app.route('/training')
 def training():
-    """Model training page"""
+    """Model training page route"""
     return render_template('training.html')
 
 @app.route('/api/process-image', methods=['POST'])
 def api_process_image():
-    """API endpoint for processing an image"""
-    # Check if image file is provided
+    """
+    API endpoint for processing an image using YOLO models
+    Handles both uploaded images and images from URLs
+    
+    Returns:
+        JSON: Response with processing results and image URL
+    """
+    # Check if either image file or URL is provided
     if 'image' not in request.files and 'url' not in request.form:
         return jsonify({'error': 'No image file or URL provided'}), 400
     
-    # Get parameters
+    # Get processing parameters
     model_type = request.form.get('model_type', 'detection')
     confidence = float(request.form.get('confidence', 0.25))
     
@@ -776,7 +822,7 @@ def api_process_image():
         image_url = request.form['url']
         result_data, result_filename = process_from_url(image_url, model_type, confidence)
     
-    # Process uploaded file
+    # Process uploaded file if provided
     elif 'image' in request.files:
         file = request.files['image']
         
@@ -788,7 +834,7 @@ def api_process_image():
             # Process the image
             result_data, result_filename = process_image(filepath, model_type, confidence)
     
-    # Return the results
+    # Return results with different formats depending on what was generated
     if result_filename:
         return jsonify({
             'status': 'success',
@@ -805,24 +851,29 @@ def api_process_image():
 
 @app.route('/api/start-training', methods=['POST'])
 def api_start_training():
-    """API endpoint to start model training"""
+    """
+    API endpoint to start model training with a custom dataset
+    
+    Returns:
+        JSON: Response with training status
+    """
     global is_training, training_thread
     
-    # Check if already training
+    # Check if training is already in progress
     if is_training:
         return jsonify({
             'status': 'error',
             'message': 'Training already in progress'
         }), 400
     
-    # Check if dataset is provided
+    # Check if dataset file was provided
     if 'dataset' not in request.files:
         return jsonify({
             'status': 'error',
             'message': 'No dataset file provided'
         }), 400
     
-    # Get parameters
+    # Get training parameters
     epochs = int(request.form.get('epochs', 10))
     model_type = request.form.get('model_type', 'detection')
     batch_size = int(request.form.get('batch_size', 16))
@@ -835,10 +886,10 @@ def api_start_training():
         filepath = os.path.join(app.config['DATASETS_FOLDER'], filename)
         dataset_file.save(filepath)
         
-        # Extract dataset
+        # Extract dataset and prepare for training
         dataset_path, yaml_files = extract_dataset(filepath)
         
-        # Start training
+        # Start training in a separate thread
         training_thread = start_training(dataset_path, epochs, model_type, batch_size, img_size)
         
         return jsonify({
@@ -854,12 +905,17 @@ def api_start_training():
 
 @app.route('/api/training-status')
 def api_training_status():
-    """API endpoint to get training status"""
+    """
+    API endpoint to get current training status and progress
+    
+    Returns:
+        JSON: Current training status information
+    """
     global training_status
     
-    # Si hay un mensaje, revisa si contiene información sobre completado o error
+    # Check if message contains information about completion or errors
     if "message" in training_status:
-        # Busca si hay mensajes que indiquen que el entrenamiento terminó
+        # Look for phrases that indicate training completion
         indicators_of_completion = [
             "Training complete", 
             "Training completed", 
@@ -868,19 +924,20 @@ def api_training_status():
             "Training completed successfully"
         ]
         
+        # If found completion indicators or status is marked complete
         if any(indicator in training_status["message"] for indicator in indicators_of_completion) or training_status["complete"]:
             training_status["progress"] = 100
             training_status["complete"] = True
             if "error" in training_status["message"].lower():
-                # Si hay un mensaje de error pero sabemos que terminó, actualiza el mensaje
+                # If there was an error but we know it completed, update the message
                 training_status["message"] = "Training completed successfully"
         
-        # Verifica errores pero el entrenamiento puede haber completado igualmente
+        # Check for errors, but training might have completed anyway
         elif "error" in training_status["message"].lower() and not training_status["complete"]:
-            # Busca best.pt en los modelos para confirmar si en realidad se completó
+            # Look for best.pt in models directory to confirm if training actually completed
             for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
                 if "best.pt" in files:
-                    # Encontró un modelo entrenado
+                    # Found a trained model, indicating training completed
                     model_path = os.path.join(root, "best.pt")
                     training_status["progress"] = 100
                     training_status["message"] = f"Training complete. Model found at {model_path}"
@@ -892,32 +949,38 @@ def api_training_status():
 
 @app.route('/api/start-stream', methods=['POST'])
 def api_start_stream():
-    """API endpoint to start video stream"""
+    """
+    API endpoint to start video streaming from camera
+    
+    Returns:
+        JSON: Response with stream status
+    """
     global camera, camera_active
     
-    # Check if we are running in Hugging Face Spaces
+    # Check if we are running in Hugging Face Spaces (which doesn't support camera)
     is_huggingface = os.environ.get('SPACE_ID') is not None
     
-    # Stop existing stream if any
+    # Stop existing stream if active
     if camera_active:
         camera_active = False
-        time.sleep(1)  # Give time for the camera to release
+        time.sleep(1)  # Wait for camera resources to release
         if camera is not None:
             camera.release()
     
-    # If we're in Hugging Face Spaces, return a specific message
+    # Return error in Hugging Face environment
     if is_huggingface:
         return jsonify({
             'status': 'error',
             'message': 'Live camera streaming is not available in Hugging Face Spaces. Please use the Video Processing feature instead.'
         }), 400
     
-    # Start new camera
+    # Start new camera with specified camera ID
     camera_id = int(request.form.get('camera_id', 0))
     
     try:
         camera = cv2.VideoCapture(camera_id)
         
+        # Check if camera opened successfully
         if not camera.isOpened():
             return jsonify({
                 'status': 'error',
@@ -938,12 +1001,19 @@ def api_start_stream():
 
 @app.route('/api/stop-stream', methods=['POST'])
 def api_stop_stream():
-    """API endpoint to stop video stream"""
+    """
+    API endpoint to stop video streaming
+    
+    Returns:
+        JSON: Response with stop status
+    """
     global camera, camera_active
     
+    # Set flag to stop streaming
     camera_active = False
-    time.sleep(1)  # Give time for the camera to release
+    time.sleep(1)  # Wait for resources to release
     
+    # Release camera if it exists
     if camera is not None:
         camera.release()
         camera = None
@@ -955,10 +1025,17 @@ def api_stop_stream():
 
 @app.route('/video-feed')
 def video_feed():
-    """Video feed endpoint"""
+    """
+    Video feed endpoint that serves the processed video stream
+    
+    Returns:
+        Response: Multipart response with processed video frames
+    """
+    # Get model type and confidence from query parameters
     model_type = request.args.get('model_type', 'detection')
     confidence = float(request.args.get('confidence', 0.25))
     
+    # Return streaming response with multipart content type
     return Response(
         get_video_stream(model_type, confidence),
         mimetype='multipart/x-mixed-replace; boundary=frame'
@@ -966,16 +1043,22 @@ def video_feed():
 
 @app.route('/api/capture-frame', methods=['POST'])
 def api_capture_frame():
-    """API endpoint to capture a frame from video stream"""
+    """
+    API endpoint to capture a still frame from the video stream
+    
+    Returns:
+        JSON: Response with captured frame URL
+    """
     global global_frame
     
+    # Check if there's a frame available to capture
     if global_frame is None:
         return jsonify({
             'status': 'error',
             'message': 'No frame available'
         }), 400
     
-    # Save frame as image
+    # Save the current frame as an image with unique filename
     frame_filename = f"{generate_unique_filename('capture')}.jpg"
     frame_path = os.path.join(app.config['RESULTS_FOLDER'], frame_filename)
     cv2.imwrite(frame_path, global_frame)
@@ -987,13 +1070,27 @@ def api_capture_frame():
 
 @app.route('/results/<filename>')
 def results(filename):
-    """Serve result files"""
+    """
+    Serve result files (processed images and videos)
+    
+    Args:
+        filename (str): Name of the result file
+        
+    Returns:
+        Response: File content
+    """
     return send_file(os.path.abspath(os.path.join(app.config['RESULTS_FOLDER'], filename)))
 
 @app.route('/models/<model_filename>')
 def serve_model(model_filename):
     """
     Serve model files (PyTorch .pt or ONNX .onnx) for download
+    
+    Args:
+        model_filename (str): Name of the model file
+        
+    Returns:
+        Response: Model file content for download
     """
     models_dir = app.config['MODELS_FOLDER']
     return send_file(os.path.join(models_dir, model_filename),
@@ -1002,7 +1099,12 @@ def serve_model(model_filename):
 
 @app.route('/api/list-models')
 def api_list_models():
-    """API endpoint to list available trained models"""
+    """
+    API endpoint to list all available trained models with their metadata
+    
+    Returns:
+        JSON: List of models with their details
+    """
     models = []
     
     # Ensure directory exists
@@ -1040,20 +1142,20 @@ def api_list_models():
                     
                     print(f"Processing model: {model_name} from {model_path}")
                     
-                    # Find training artifacts
+                    # Find training artifacts (visualization plots, config files, etc.)
                     training_files = {}
                     
-                    # Files to look for
+                    # Files to look for - standard YOLO training output files
                     potential_files = [
-                        'labels.jpg',
-                        'results.png',
-                        'confusion_matrix.png',
-                        'PR_curve.png',
-                        'F1_curve.png',
-                        'P_curve.png',
-                        'R_curve.png',
-                        'results.csv',
-                        'args.yaml',
+                        'labels.jpg',         # Label visualization
+                        'results.png',        # Training results plot
+                        'confusion_matrix.png', # Confusion matrix
+                        'PR_curve.png',       # Precision-recall curve
+                        'F1_curve.png',       # F1 score curve
+                        'P_curve.png',        # Precision curve
+                        'R_curve.png',        # Recall curve
+                        'results.csv',        # Training metrics CSV
+                        'args.yaml',          # Training arguments
                     ]
                     
                     # Look for files in the model directory
@@ -1071,15 +1173,15 @@ def api_list_models():
                     # Log the metrics for debugging
                     print(f"Final metrics for model {model_name}: {real_metrics}")
                     
-                    # Check for ONNX model
+                    # Check for ONNX model (optimized format for deployment)
                     onnx_path = model_path.replace('.pt', '.onnx')
                     has_onnx = os.path.exists(onnx_path)
                     
-                    # Extract class names
+                    # Extract class names and other model info
                     model_info = {
                         'classes': None,
                         'model_size': os.path.getsize(model_path),
-                        'imgsz': 640,
+                        'imgsz': 640,  # Default image size
                     }
                     
                     # Try to find data.yaml for class names
@@ -1123,8 +1225,8 @@ def api_list_models():
         # List all .pt and .onnx files in the models directory and subdirectories
         for root, dirs, files in os.walk(app.config['MODELS_FOLDER']):
             for file in files:
+                # Skip base models, only include trained models (exclude standard YOLO models)
                 if file.endswith('.pt') and not file.startswith(('yolov8n', 'yolov8s', 'yolov8m', 'yolov8l', 'yolov8x')):
-                    # Skip base models, only include trained models
                     model_path = os.path.join(root, file)
                     rel_path = os.path.relpath(model_path, app.config['MODELS_FOLDER'])
                     model_name = os.path.splitext(os.path.basename(file))[0]
@@ -1246,7 +1348,15 @@ def api_list_models():
 
 @app.route('/model_artifact/<path:path>')
 def model_artifact(path):
-    """Serve model artifacts like graphs and training files"""
+    """
+    Serve model artifacts like graphs and training files
+    
+    Args:
+        path (str): Path to the artifact file
+        
+    Returns:
+        Response: File content or 404 error
+    """
     # Try different possible paths to find the file
     possible_paths = [
         os.path.join(app.config['MODELS_FOLDER'], path),                # Normal path
@@ -1266,7 +1376,16 @@ def model_artifact(path):
 
 @app.route('/model/<path:model_dir>/weights/<path:model_file>')
 def serve_model_file(model_dir, model_file):
-    """Serve model files from the weights directory"""
+    """
+    Serve model files from the weights directory
+    
+    Args:
+        model_dir (str): Directory containing the model
+        model_file (str): Name of the model file to serve
+        
+    Returns:
+        Response: Model file content for download
+    """
     model_path = os.path.join(app.config['MODELS_FOLDER'], model_dir, "weights", model_file)
     
     if os.path.exists(model_path):
@@ -1276,12 +1395,20 @@ def serve_model_file(model_dir, model_file):
 
 @app.route('/model_classes/<model_id>')
 def model_classes(model_id):
-    """Mostrar directamente las clases del modelo sin depender de JavaScript"""
-    # Obtener la ruta al modelo
+    """
+    Display model classes directly without depending on JavaScript
+    
+    Args:
+        model_id (str): ID of the model to show classes for
+        
+    Returns:
+        Response: Rendered template with class information
+    """
+    # Get path to the model
     models_dir = os.path.join(app.static_folder, 'models')
     metadata_dir = os.path.join(models_dir, model_id)
     
-    # Buscar el archivo data.yaml a través de args.yaml
+    # Look for the data.yaml file through args.yaml
     yaml_config_file = os.path.join(metadata_dir, 'args.yaml')
     classes_data = {}
     
@@ -1291,22 +1418,22 @@ def model_classes(model_id):
             with open(yaml_config_file, 'r') as f:
                 yaml_config = yaml.safe_load(f)
                 
-                # Verificar si hay un archivo data.yaml referenciado
+                # Check if there's a data.yaml file referenced
                 if 'data' in yaml_config and os.path.exists(yaml_config['data']):
                     with open(yaml_config['data'], 'r') as data_file:
                         data_config = yaml.safe_load(data_file)
                         
-                        # Extraer nombres de clases de data.yaml
+                        # Extract class names from data.yaml
                         if 'names' in data_config:
                             classes_data = data_config['names']
-                            app.logger.info(f"Clases encontradas en data.yaml: {classes_data}")
+                            app.logger.info(f"Classes found in data.yaml: {classes_data}")
         except Exception as e:
-            app.logger.error(f"Error al leer archivos YAML: {str(e)}")
+            app.logger.error(f"Error reading YAML files: {str(e)}")
     
-    # Si no encontramos clases, usamos una lista genérica
+    # If we didn't find classes, use a generic list
     if not classes_data:
         classes_data = {"0": "class0", "1": "class1"}
-        app.logger.warning(f"No se encontraron clases para el modelo {model_id}, usando clases genéricas")
+        app.logger.warning(f"No classes found for model {model_id}, using generic classes")
     
     return render_template('classes_view.html', model_id=model_id, classes=classes_data)
 
@@ -1314,41 +1441,47 @@ def model_classes(model_id):
 def model_details(model_id):
     """
     Render the detailed view page for a specific model.
-    Utiliza las utilidades modulares para extraer información del modelo.
+    Uses modular utilities to extract model information.
+    
+    Args:
+        model_id (str): ID of the model to show details for
+        
+    Returns:
+        Response: Rendered template with model details
     """
-    app.logger.info(f"====== INICIANDO BÚSQUEDA DE MÉTRICAS PARA MODELO: {model_id} ======")
+    app.logger.info(f"====== STARTING METRICS SEARCH FOR MODEL: {model_id} ======")
     
-    # Eliminar el sufijo " (last)" si está presente en el ID del modelo
+    # Remove the " (last)" suffix if present in the model ID
     clean_model_id = model_id.replace(" (last)", "")
-    app.logger.info(f"ID del modelo original: {model_id}, ID del modelo limpio: {clean_model_id}")
+    app.logger.info(f"Original model ID: {model_id}, Clean model ID: {clean_model_id}")
     
-    # Obtener directorios de modelos
+    # Get model directories
     models_dir = os.path.join('static', 'uploads', 'models')
     model_path = os.path.join(models_dir, clean_model_id)
     
-    # Verificar si model_path existe
+    # Check if model_path exists
     if not os.path.exists(model_path):
-        app.logger.warning(f"El directorio del modelo no existe en: {model_path}")
-        # Probar ubicación alternativa
+        app.logger.warning(f"Model directory does not exist at: {model_path}")
+        # Try alternative location
         model_path = os.path.join('static', 'models', clean_model_id)
         if os.path.exists(model_path):
-            app.logger.info(f"Usando directorio alternativo: {model_path}")
+            app.logger.info(f"Using alternative directory: {model_path}")
         else:
-            app.logger.warning(f"El directorio alternativo tampoco existe: {model_path}")
+            app.logger.warning(f"Alternative directory also does not exist: {model_path}")
     
-    # Extraer nombres de clases utilizando model_utils
-    app.logger.info(f"Extrayendo nombres de clases para el modelo: {clean_model_id}")
+    # Extract class names using model_utils
+    app.logger.info(f"Extracting class names for model: {clean_model_id}")
     class_names = []
     
-    # Ubicación del archivo PT
+    # Location of the PT file
     pt_model_path = os.path.join('static', 'models', f"{clean_model_id}.pt")
     
-    # Utilizar la función para extraer clases desde diferentes fuentes
+    # Use the function to extract classes from different sources
     classes_dict = model_utils.extract_class_names(pt_model_path, models_dir, clean_model_id)
     if classes_dict:
-        # Convertir a lista si es necesario para compatibilidad con código existente
+        # Convert to list if needed for compatibility with existing code
         if isinstance(classes_dict, dict):
-            # Si las claves son numéricas, convertimos el diccionario a lista ordenada
+            # If keys are numeric, convert the dictionary to an ordered list
             try:
                 max_idx = max([int(k) if isinstance(k, str) and k.isdigit() else k for k in classes_dict.keys()])
                 class_names = ["" for _ in range(max_idx + 1)]
@@ -1356,36 +1489,36 @@ def model_details(model_id):
                     idx = int(k) if isinstance(k, str) and k.isdigit() else k
                     class_names[idx] = v
             except (ValueError, TypeError):
-                # Si las claves no son numéricas, solo tomamos los valores
+                # If keys are not numeric, just take the values
                 class_names = list(classes_dict.values())
         else:
             class_names = classes_dict
-        app.logger.info(f"Clases extraídas para el modelo {clean_model_id}: {class_names}")
+        app.logger.info(f"Classes extracted for model {clean_model_id}: {class_names}")
     
-    # Si no se encontraron clases, usar valores predeterminados
+    # If no classes were found, use default values
     if not class_names:
         class_names = ["CHILD", "COLUMPIO"]
-        app.logger.warning(f"Usando clases predeterminadas para el modelo {model_id}")
+        app.logger.warning(f"Using default classes for model {model_id}")
     
-    # Extraer metadatos del modelo
+    # Extract model metadata
     model_info = model_utils.extract_model_metadata(models_dir, clean_model_id)
     if not model_info:
         model_info = {}
-        app.logger.warning(f"No se encontraron metadatos para el modelo {clean_model_id}")
+        app.logger.warning(f"No metadata found for model {clean_model_id}")
     
-    # Extraer métricas del modelo usando metrics_utils
-    app.logger.info(f"Extrayendo métricas para el modelo: {clean_model_id}")
+    # Extract model metrics using metrics_utils
+    app.logger.info(f"Extracting metrics for model: {clean_model_id}")
     metrics_extractor = metrics_utils.ModelMetricsExtractor(models_dir, clean_model_id)
     metrics = metrics_extractor.get_all_metrics()
     
-    # Asignar métricas a variables individuales para el template
+    # Assign metrics to individual variables for the template
     precision = metrics.get('precision', 0.92)
     recall = metrics.get('recall', 0.89)
     map50 = metrics.get('mAP50', 0.88)
     map50_95 = metrics.get('mAP50-95', 0.67)
     
-    app.logger.info(f"====== BÚSQUEDA DE MÉTRICAS FINALIZADA ======")
-    app.logger.info(f"Valores finales - Precision: {precision}, Recall: {recall}, mAP50: {map50}, mAP50-95: {map50_95}")
+    app.logger.info(f"====== METRICS SEARCH COMPLETED ======")
+    app.logger.info(f"Final values - Precision: {precision}, Recall: {recall}, mAP50: {map50}, mAP50-95: {map50_95}")
     
     return render_template('model_details.html', 
                            model_id=model_id,
@@ -1399,8 +1532,11 @@ def model_details(model_id):
 @app.route('/api/model-details')
 def api_model_details():
     """
-    API endpoint para obtener información detallada sobre un modelo específico.
-    Utiliza módulos de utilidades para extraer clases y métricas de forma robusta.
+    API endpoint to get detailed information about a specific model.
+    Utilizes modular utilities to extract class names and metrics from a model.
+    
+    Returns:
+        JSON: Detailed information about the model
     """
     app.logger.info("Iniciando api_model_details")
     model_id = request.args.get('id')
