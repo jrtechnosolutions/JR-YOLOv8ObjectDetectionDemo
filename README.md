@@ -1,13 +1,3 @@
----
-title: YOLO Vision AI
-emoji: 🔍
-colorFrom: blue
-colorTo: green
-sdk: docker
-sdk_version: 3.8.0
-app_file: app.py
-pinned: false
----
 
 # YOLO Vision AI
 
